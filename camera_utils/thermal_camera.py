@@ -1,20 +1,20 @@
 # camera_utils/thermal_camera.py
 
 import time
-from queue import Queue
+# from queue import Queue # Remove this line if only using the try/except below
 from ctypes import *
 import numpy as np
-import cv2 # Needed for resize inside this class now
+import cv2
 
 # Import UVC types and constants - assumes uvctypes.py is in project root
 import sys
 import os
 # Add project root to path to find uvctypes
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Comment out if uvctypes is now found via standard path
 try:
     from uvctypes import *
 except ImportError:
-    print("ERROR: uvctypes.py not found. Make sure it's in the project root.")
+    print("ERROR: uvctypes.py not found. Make sure it's in the project root or PYTHONPATH.")
     sys.exit(1)
 
 # Import config for constants
@@ -23,6 +23,14 @@ try:
 except ModuleNotFoundError:
     print("ERROR: config.py not found. Make sure it's in the project root.")
     sys.exit(1)
+
+
+# --- Corrected Queue and Empty Exception Import ---
+try:
+  from queue import Queue, Empty # Python 3: Import both Queue and Empty
+except ImportError:
+  from Queue import Queue, Empty # Python 2: Import both Queue and Empty
+# --------------------------------------------------
 
 
 # --- Frame Callback ---
@@ -52,7 +60,6 @@ def py_frame_callback(frame, userptr):
         print(f"Error in thermal frame callback: {e}")
 
 PTR_PY_FRAME_CALLBACK = CFUNCTYPE(None, POINTER(uvc_frame), c_void_p)(py_frame_callback)
-
 
 class ThermalCameraUVC:
     """Handles UVC Thermal Camera interaction."""
@@ -147,11 +154,10 @@ class ThermalCameraUVC:
         """Gets a frame from the queue."""
         try:
             data = frame_queue.get(True, timeout) # Wait with timeout
-            # Resize frame here if needed, e.g., to match visible camera aspect ratio or target size
             data_resized = cv2.resize(data, (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT),
                                       interpolation=cv2.INTER_NEAREST) # Nearest for temp data
             return data_resized
-        except Queue.Empty:
+        except Empty: # <<< --- Catch the imported 'Empty' exception directly ---
             # print("Warning: Thermal frame queue timed out.") # Can be noisy
             return None
         except Exception as e:
