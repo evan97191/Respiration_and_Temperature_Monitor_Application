@@ -3,7 +3,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 # Use absolute import from local module
-from unet_parts import DoubleConv, Down, Up, OutConv
+from models.unet_parts import DoubleConv, Down, Up, OutConv
 
 class UNet(nn.Module):
     """Full assembly of the parts to form the complete UNet network."""

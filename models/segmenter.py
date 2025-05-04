@@ -11,7 +11,7 @@ try:
 except ImportError:
      # Fallback if running directly or structure issue
     try:
-        from unet_model import UNet
+        from models.unet_model import UNet
     except ImportError:
         print("ERROR: Cannot import UNet model. Make sure unet_model.py/unet_parts.py are in the models directory.")
         import sys
