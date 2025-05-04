@@ -63,6 +63,10 @@ RESP_DISPLAY_COLOR = (0, 0, 255) # BGR for Visible Image (Red)
 RESP_FONT_SCALE = 3
 RESP_THICKNESS = 3
 
+# Respiration Analysis Range
+RESP_MIN_BPM = 5.0
+RESP_MAX_BPM = 50.0
+
 # Mask Overlay
 MASK_OVERLAY_COLOR = [255, 0, 0] # RGB
 MASK_OVERLAY_ALPHA = 0.5
