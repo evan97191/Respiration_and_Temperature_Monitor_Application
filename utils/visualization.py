@@ -2,6 +2,7 @@
 
 import cv2
 import config # For colors, fonts etc.
+import numpy as np
 
 def draw_bounding_box(image, box, color=config.BBOX_COLOR, thickness=config.BBOX_THICKNESS):
     """ Draws the largest bounding box and its label on the image. """
