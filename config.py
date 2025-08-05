@@ -34,7 +34,8 @@ DISPLAY_HEIGHT = 600
 # Format: [[x_ir, y_ir], ...] and [[x_vis, y_vis], ...]
 POINTS_IR = [[722, 109], [125, 112], [107, 548], [718, 560]]
 POINTS_VIS = [[798, 151], [200, 174], [155, 540], [813, 566]]
-
+# POINTS_IR = [[135, 155], [622, 123], [159, 434], [635, 412]]
+# POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
 # YOLO Detection Confidence Threshold
 YOLO_CONF_THRESHOLD = 0.5
 

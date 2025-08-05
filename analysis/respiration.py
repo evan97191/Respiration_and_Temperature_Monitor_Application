@@ -15,6 +15,12 @@ def update_temperature_queue(new_temp, data_list: list, max_size: int) -> list:
     data_list.append(new_temp)
     return data_list
 
+def detrend(signal):
+    p = np.polyfit(range(len(signal)), signal, 1)
+    trend = np.polyval(p, range(len(signal)))
+    signal_detrended = signal - trend
+    return signal_detrended
+
 def calculate_respiration_fft(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM): # 添加預設範圍參數
     """
     Calculates breathing rate in BPM using FFT, searching within a specified BPM range.
@@ -35,13 +41,19 @@ def calculate_respiration_fft(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_b
         return None
 
     temp_array = np.array(temp_list)
-    N = len(temp_array)
+
+    detrend_temp_array = detrend(temp_array)
+    N = len(detrend_temp_array)
+
+    hamming_window = np.hamming(N)
+    windowed_temp_array = detrend_temp_array * hamming_window
+
     sampling_rate = float(fps)
 
     try:
         # --- FFT Calculation ---
         freqs = np.fft.fftfreq(N, d=1.0 / sampling_rate)
-        fft_values = np.fft.fft(temp_array)
+        fft_values = np.fft.fft(windowed_temp_array)
         fft_magnitude = np.abs(fft_values)
 
         # --- Frequency Filtering ---
@@ -51,8 +63,8 @@ def calculate_respiration_fft(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_b
 
         # Consider only positive frequencies (excluding DC at index 0)
         half_N = N // 2
-        positive_freqs = freqs[1:half_N]
-        positive_magnitude = fft_magnitude[1:half_N]
+        positive_freqs = freqs[:half_N]
+        positive_magnitude = fft_magnitude[:half_N]
 
         if len(positive_magnitude) == 0:
             # print("Warning: No positive frequency components found.")
@@ -80,7 +92,7 @@ def calculate_respiration_fft(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_b
         # --- Get the corresponding frequency and convert to BPM ---
         # Remember that positive_freqs started from index 1 of the original freqs
         # So, the index in the full freqs array is peak_idx_in_positive + 1
-        peak_freq_hz = freqs[peak_idx_in_positive + 1] # Or positive_freqs[peak_idx_in_positive]
+        peak_freq_hz = freqs[peak_idx_in_positive] # Or positive_freqs[peak_idx_in_positive]
 
         # Double check the selected frequency is indeed within bounds (due to potential floating point issues)
         # assert min_hz <= peak_freq_hz <= max_hz , f"Peak {peak_freq_hz}Hz out of bounds [{min_hz}, {max_hz}]"

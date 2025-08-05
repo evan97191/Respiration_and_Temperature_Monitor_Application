@@ -103,7 +103,7 @@ class UNetSegmenter:
 
         # Resize mask to match image if necessary
         if image_np.shape[:2] != mask_np.shape:
-            print(f"Warning: Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for overlay.")
+            #print(f"Warning: Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for overlay.")
             try:
                 mask_np_resized = cv2.resize(mask_np.astype(np.uint8),
                                            (image_np.shape[1], image_np.shape[0]),
@@ -142,9 +142,9 @@ class UNetSegmenter:
 
         # Resize mask to match image if necessary
         if image_np.shape[:2] != mask_np.shape:
-            print(f"Warning: Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for extraction.")
+            #print(f"Warning: Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for extraction.")
             try:
-                mask_np_resized = cv2.resize(mask_np.astype(np.uint8),
+                mask_np_resized = cv2.resize(mask_np.astype(np.uint16),
                                            (image_np.shape[1], image_np.shape[0]),
                                            interpolation=cv2.INTER_NEAREST)
                 mask_np = mask_np_resized
