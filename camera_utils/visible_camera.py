@@ -23,6 +23,7 @@ class VisibleCamera:
     def get_frame(self):
         """Reads a frame from the camera."""
         ret, frame = self.cap.read()
+        frame = cv2.resize(frame, (960,616))
         if not ret:
             print("Warning: Failed to capture frame from visible camera.")
             return False, None

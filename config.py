@@ -2,7 +2,11 @@
 
 # -- Model Paths --
 YOLO_MODEL_PATH = "yolo11n_headmask.pt"
-UNET_MODEL_PATH = "unet_model_best.pth"
+UNET_MODEL_PATH = "unet_msfd_model_best.pth"
+
+# Excution time
+DURATION = 20 # second
+
 
 # -- Camera Parameters --
 # UVC Thermal Camera VID/PID (from uvctypes.py, maybe keep there or centralize here)
@@ -28,8 +32,8 @@ DISPLAY_HEIGHT = 600
 
 # Perspective Transform Points (Hardcoded or from calibration file)
 # Format: [[x_ir, y_ir], ...] and [[x_vis, y_vis], ...]
-POINTS_IR = [[135, 155], [622, 123], [159, 434], [635, 412]]
-POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
+POINTS_IR = [[722, 109], [125, 112], [107, 548], [718, 560]]
+POINTS_VIS = [[798, 151], [200, 174], [155, 540], [813, 566]]
 
 # YOLO Detection Confidence Threshold
 YOLO_CONF_THRESHOLD = 0.5
@@ -40,10 +44,10 @@ UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is commo
 UNET_INPUT_SIZE = (256, 256)
 
 # -- Analysis Parameters --
-TEMPERATURE_QUEUE_MAX_SIZE = 128
-RESPIRATION_MIN_DATA_POINTS = 10 # Minimum points needed for FFT
+TEMPERATURE_QUEUE_MAX_SIZE = 256
+RESPIRATION_MIN_DATA_POINTS = 32 # Minimum points needed for FFT
 # Default FPS if calculation fails
-DEFAULT_FPS = 10 # Adjust based on expected performance
+DEFAULT_FPS = 21 # Adjust based on expected performance
 
 # -- Visualization Parameters --
 # BBox Color (BGR)
@@ -64,8 +68,8 @@ RESP_FONT_SCALE = 3
 RESP_THICKNESS = 3
 
 # Respiration Analysis Range
-RESP_MIN_BPM = 5.0
-RESP_MAX_BPM = 50.0
+RESP_MIN_BPM = 1.0
+RESP_MAX_BPM = 100.0
 
 # Mask Overlay
 MASK_OVERLAY_COLOR = [255, 0, 0] # RGB
@@ -74,8 +78,9 @@ MASK_OVERLAY_ALPHA = 0.5
 # Window Names
 WINDOW_CAMERA = 'Camera'
 WINDOW_THERMAL = 'Thermal Camera'
-WINDOW_HEAD_OVERLAY = 'Head Overlay'
-WINDOW_HEAD_SEGMENTED = 'Head Segmented'
+WINDOW_MASK_OVERLAY = 'MASK Overlay'
+WINDOW_MASK_SEGMENTED = 'MASK Segmented'
+WINDOW_THERMAL_MASK_SEGMENTED = 'THERMAL MASK Segmented'
 
 # -- Device --
 # Auto-detect CUDA or use CPU
