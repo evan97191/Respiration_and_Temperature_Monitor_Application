@@ -65,3 +65,27 @@ def cut_roi(image, box):
         return None
 
     return roi
+
+def create_skin_mask(bgr_image):
+    """Create a mask of skin."""
+    # Convert an image from BGR to YCrCb color space
+    ycrcb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2YCR_CB)
+    
+    # Separate Y, Cr, Cb channels
+    Y, Cr, Cb = cv2.split(ycrcb_image)
+
+    # Define skin color conditions
+    # That is, we want to find all pixels that *meet* the skin condition
+    skin_in_condition = (
+        (Y > 80) &                # Luminance Conditions
+        (Cr > 135) & (Cr < 180) & # Red Chroma Range
+        (Cb > 85) & (Cb < 135)    # Blue Chroma Range
+    )
+
+    # Create a completely black mask
+    mask = np.zeros(bgr_image.shape[:2], dtype="uint8")
+    
+    # Set the pixel locations that meet the skin criteria to white (255)
+    mask[skin_in_condition] = 255
+    
+    return mask

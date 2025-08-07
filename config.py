@@ -5,8 +5,10 @@ YOLO_MODEL_PATH = "yolo11n_headmask.pt"
 UNET_MODEL_PATH = "unet_msfd_model_best.pth"
 
 # Excution time
-DURATION = 20 # second
+DURATION = 6000 # second
 
+# Filter out skin color (Optional features)
+SKIN_COLOR_FILTER = False
 
 # -- Camera Parameters --
 # UVC Thermal Camera VID/PID (from uvctypes.py, maybe keep there or centralize here)
@@ -82,7 +84,7 @@ WINDOW_THERMAL = 'Thermal Camera'
 WINDOW_MASK_OVERLAY = 'MASK Overlay'
 WINDOW_MASK_SEGMENTED = 'MASK Segmented'
 WINDOW_THERMAL_MASK_SEGMENTED = 'THERMAL MASK Segmented'
-
+WINDOW_THERMAL_SKIN_MASK_SEGMENTED = 'THERMAL SKIN MASK Segmented'
 # -- Device --
 # Auto-detect CUDA or use CPU
 import torch

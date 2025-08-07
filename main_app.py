@@ -18,7 +18,7 @@ from camera_utils.visible_camera import VisibleCamera
 
 # Import image processing
 from image_processing.alignment import calculate_perspective_matrix, apply_perspective
-from image_processing.basic_ops import raw_to_8bit, cut_roi, ktoc
+from image_processing.basic_ops import raw_to_8bit, cut_roi, ktoc, create_skin_mask
 
 # Import models
 from models.detector import YoloDetector
@@ -35,10 +35,11 @@ def main():
     fps_tracker = FPSTracker(buffer_size=10) # Use class based tracker
     display_manager = DisplayManager([
         config.WINDOW_CAMERA,
-        config.WINDOW_THERMAL
-        # config.WINDOW_MASK_OVERLAY,
-        # config.WINDOW_MASK_SEGMENTED,
-        # config.WINDOW_THERMAL_MASK_SEGMENTED
+        config.WINDOW_THERMAL,
+        config.WINDOW_MASK_OVERLAY,
+        config.WINDOW_MASK_SEGMENTED,
+        config.WINDOW_THERMAL_MASK_SEGMENTED,
+        config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED
     ], default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
 
     try:
@@ -182,8 +183,44 @@ def main():
             # print(f"no unet:{round(avg_temp_no_unet, 2)}, unet:{round(avg_temp, 2)}")
 
             # avg_temp = calculate_average_pixel_value(yolo_head_roi, largest_box)
-    
-            max_temp = calculate_maximum_pixel_value(thermal_data, largest_box) # Update max_temp here
+            
+            # --- Temperature Calculation (using skin mask) ---
+            if config.SKIN_COLOR_FILTER:
+                thermal_roi = cut_roi(thermal_data, largest_box)
+
+                skin_mask = create_skin_mask(yolo_head_roi)
+                skin_temperatures = thermal_roi[skin_mask == 255]
+
+                if skin_temperatures.size > 0:
+                    max_temp = np.max(skin_temperatures)
+                    alpha = 0.4
+                    thermal_roi_8bit = raw_to_8bit(thermal_roi)
+                    color_overlay = np.zeros_like(thermal_roi_8bit)
+                    color_overlay[skin_mask == 255] = (0, 0, 255)
+                    
+                    skin_masked_thermal_data = cv2.addWeighted(
+                        thermal_roi_8bit,
+                        1 - alpha,
+                        color_overlay,
+                        alpha,
+                        0
+                    )
+                    
+                    display_manager.show(config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED, skin_masked_thermal_data)
+                else:
+                    print("在此區域中沒有偵測到皮膚，將使用原始YOLO的ROI計算。")
+                    if thermal_roi.size > 0:
+                        max_temp = np.max(thermal_roi)
+                    else:
+                        max_temp = None
+            else:
+                # ... (原始邏輯) ...
+                thermal_roi = cut_roi(thermal_data, largest_box)
+                if thermal_roi.size > 0:
+                    max_temp = np.max(thermal_roi)
+                else:
+                    max_temp = None
+                
             temp_val = ktoc(max_temp)
             max_temp_list = update_temperature_queue(temp_val, max_temp_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
             # --- Update Temperature Queue ---
@@ -230,7 +267,7 @@ def main():
                 # 不論儲存是否成功，都退出主迴圈
                 break # <--- 退出 while True 迴圈
             '''
-
+            
             # <<< --- 檢查結束 --- >>>
 
         else: # No largest box found
@@ -273,7 +310,9 @@ def main():
         display_manager.show(config.WINDOW_CAMERA, frame_to_show)
         display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
 
-        '''
+        
+
+        #
         # Only show head windows if they were generated
         if mask_segmented_thermal_data is not None:
             display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, mask_segmented_thermal_data)
@@ -291,7 +330,7 @@ def main():
              display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
         else:
              display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
-        '''
+        #
 
         print(f"{round(time.time() - start_time, 2)}")  #執行時間
 
