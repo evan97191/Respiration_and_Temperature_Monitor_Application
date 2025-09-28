@@ -176,3 +176,9 @@ respiration-monitor-app/
   * **對齊精度**: 影像對齊的準確性完全依賴於 `config.py` 中校準點的精度。如果對齊效果不佳，請務必重新運行 `calibrate_v3.py`。
   * **呼吸率計算穩定性**: 呼吸率的計算基於溫度變化的 FFT 分析，其穩定性會受到多種因素影響，例如偵測框是否穩定、頭部是否遠離畫面、實際呼吸模式的規律性等。
   * **效能**: 在嵌入式裝置（如 Jetson Nano）上同時運行 YOLO 和 UNet 對計算資源要求較高，可能會導致 FPS (每秒幀數) 下降。
+
+## 使用到的資料庫 (Datasets)
+
+  * **MSFD**: https://github.com/sadjadrz/MFSD
+  * **YOLO helmet/head**: https://www.kaggle.com/datasets/vodan37/yolo-helmethead
+  * **Mask-Detection-Dataset**: https://github.com/archie9211/Mask-Detection-Dataset
