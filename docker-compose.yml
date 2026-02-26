@@ -1,0 +1,17 @@
+services:
+  yolo:
+    build: .                   # 告訴 Compose 在當前目錄尋找 Dockerfile 並建置
+    container_name: yolo
+    runtime: nvidia
+    network_mode: host
+    privileged: true
+    working_dir: /workspace
+    environment:
+      - DISPLAY=:1
+    volumes:
+      - ./:/workspace          # 將當下目錄掛載到 Container 內的 /workspace
+      - /tmp/.X11-unix:/tmp/.X11-unix
+      - /tmp/argus_socket:/tmp/argus_socket
+      - /dev:/dev              # 讓 Container 可以隨時抓到熱插拔的雙鏡頭
+    stdin_open: true           # 保持標準輸入開啟 (對應 -i)
+    tty: true                  # 分配虛擬終端機 (對應 -t)

@@ -1,0 +1,23 @@
+#pull yolo image
+t=ultralytics/ultralytics:latest-jetson-jetpack6 &&sudo  docker pull $t
+
+#build container by command
+sudo docker run -it --runtime=nvidia --network=host --privileged \
+    --name=yolo \
+    -w /workspace \
+    -e DISPLAY=:1 \
+    -v "$PWD":/workspace \
+    -v /tmp/.X11-unix:/tmp/.X11-unix \
+    -v /tmp/argus_socket:/tmp/argus_socket \
+    -v /dev:/dev \
+    ultralytics/ultralytics:latest-jetson-jetpack6
+--------------------------------------------------------------------------------
+#build container by docker-compose.yml
+sudo docker compose up -d --build   #first time
+sudo docker compose up -d
+
+#enter container
+sudo docker exec -it yolo bash
+
+#shutdown container
+sudo docker compose down
