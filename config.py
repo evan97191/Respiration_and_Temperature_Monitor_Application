@@ -5,9 +5,9 @@ YOLO_MODEL_PATH = "yolo11n_headmask.pt"
 UNET_MODEL_PATH = "unet_msfd_model_best.pth"
 
 # Excution time
-DURATION = 6000 # second
+DURATION = 600 # second
 
-# Filter out skin color (Optional features)
+# Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False
 
 # -- Camera Parameters --
@@ -34,8 +34,8 @@ DISPLAY_HEIGHT = 600
 
 # Perspective Transform Points (Hardcoded or from calibration file)
 # Format: [[x_ir, y_ir], ...] and [[x_vis, y_vis], ...]
-POINTS_IR = [[722, 109], [125, 112], [107, 548], [718, 560]]
-POINTS_VIS = [[798, 151], [200, 174], [155, 540], [813, 566]]
+POINTS_IR = [[95, 71], [117, 578], [703, 565], [715, 69]]
+POINTS_VIS = [[197, 122], [226, 520], [780, 510], [781, 107]]
 # POINTS_IR = [[135, 155], [622, 123], [159, 434], [635, 412]]
 # POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
 # YOLO Detection Confidence Threshold
@@ -47,8 +47,8 @@ UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is commo
 UNET_INPUT_SIZE = (256, 256)
 
 # -- Analysis Parameters --
-TEMPERATURE_QUEUE_MAX_SIZE = 256
-RESPIRATION_MIN_DATA_POINTS = 32 # Minimum points needed for FFT
+TEMPERATURE_QUEUE_MAX_SIZE = 10 * 9
+RESPIRATION_MIN_DATA_POINTS = 9 # Minimum points needed for FFT
 # Default FPS if calculation fails
 DEFAULT_FPS = 21 # Adjust based on expected performance
 
