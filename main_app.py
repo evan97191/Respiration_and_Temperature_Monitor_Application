@@ -36,10 +36,10 @@ def main():
     fps_tracker = FPSTracker(buffer_size=10) # Use class based tracker
     display_manager = DisplayManager([
         config.WINDOW_CAMERA,
-        config.WINDOW_THERMAL
+        config.WINDOW_THERMAL,
         # config.WINDOW_MASK_OVERLAY,
-        # config.WINDOW_MASK_SEGMENTED,
-        # config.WINDOW_THERMAL_MASK_SEGMENTED,
+        config.WINDOW_MASK_SEGMENTED,
+        config.WINDOW_THERMAL_MASK_SEGMENTED
         # config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED
     ], default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
 
@@ -114,11 +114,6 @@ def main():
     output_file_name_no_Unet = "temp_with_no_Unet.txt" # 定義輸出檔案名
     output_file_name_max_temp = "max_temp.txt" # 定義輸出檔案名
     output_file_resp = "resp_list.txt"
-    
-    # Tracking variables
-    tracker = None
-    tracking_active = False
-
     start_time = time.time()
     while True:
 
@@ -142,42 +137,10 @@ def main():
         # 2. Skip alignment of entire visible frame!
         # We will detect on the raw visible frame, and transform the BBox later
         
-        # 3. Object Detection (YOLO) OR Tracking (CSRT) on visible frame
-        largest_box = None
+        # 3. Object Detection (YOLO) on visible frame
+        yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+        largest_box = detector.find_largest_box(yolo_results)
         
-        if tracking_active and tracker is not None:
-             # --- RUN TRACKER ---
-            success, box = tracker.update(visible_frame)
-            if success:
-                x, y, w, h = box
-                largest_box = {
-                    'x1': float(x),
-                    'y1': float(y),
-                    'x2': float(x + w),
-                    'y2': float(y + h),
-                    'conf': 1.0, # Tracker doesn't have conf, assume 1.0
-                    'class': 0   # Assume class 0
-                }
-            else:
-                # Tracker lost the object
-                tracking_active = False
-                largest_box = None
-
-        # Fallback to YOLO if tracking failed or not active
-        if not tracking_active:
-             # --- RUN YOLO ---
-            yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
-            largest_box = detector.find_largest_box(yolo_results)
-            
-            if largest_box is not None:
-                # Initialize or re-initialize tracker
-                tracker = cv2.TrackerCSRT_create()
-                # OpenCV Tracker expects tuple: (x, y, w, h)
-                bbox_tuple = (int(largest_box['x1']), int(largest_box['y1']), 
-                              int(largest_box['x2'] - largest_box['x1']), int(largest_box['y2'] - largest_box['y1']))
-                tracker.init(visible_frame, bbox_tuple)
-                tracking_active = True
-                
         # 4. Segmentation and Analysis (if box found)
         head_overlay_display = None
         head_segmented_display = None
@@ -361,25 +324,18 @@ def main():
 
 
         # 7. Update Displays
-        if config.SHOW_VISIBLE_CAMERA_UI:
-            display_manager.show(config.WINDOW_CAMERA, frame_to_show)
-        else:
-            display_manager.show(config.WINDOW_CAMERA, None)
-            
-        if config.SHOW_THERMAL_UI:
-            display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
-        else:
-            display_manager.show(config.WINDOW_THERMAL, None)
+        display_manager.show(config.WINDOW_CAMERA, frame_to_show)
+        display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
 
         
 
         
         # # Only show head windows if they were generated
-        # if mask_segmented_thermal_data is not None:
-        #     display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, mask_segmented_thermal_data)
-        # else:
-        #      # Optionally clear the window if no head ROI
-        #      display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, None) # Show black screen
+        if mask_segmented_thermal_data is not None:
+            display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, mask_segmented_thermal_data)
+        else:
+             # Optionally clear the window if no head ROI
+             display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, None) # Show black screen
 
         # if head_overlay_display is not None:
         #      display_manager.show(config.WINDOW_MASK_OVERLAY, head_overlay_display)
@@ -387,10 +343,10 @@ def main():
         #      # Optionally clear the window if no head ROI
         #      display_manager.show(config.WINDOW_MASK_OVERLAY, None) # Show black screen
 
-        # if head_segmented_display is not None:
-        #      display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
-        # else:
-        #      display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
+        if head_segmented_display is not None:
+             display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
+        else:
+             display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
         
 
         print(f"{round(time.time() - start_time, 2)}")  #執行時間

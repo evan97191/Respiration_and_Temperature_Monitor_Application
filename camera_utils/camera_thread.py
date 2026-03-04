@@ -20,16 +20,31 @@ class CameraThread:
 
     def update(self):
         # Keep looping indefinitely until the thread is stopped
+        # If camera has start_streaming (like thermal), call it here if not active
+        if hasattr(self.camera, 'start_streaming') and not getattr(self.camera, 'is_streaming', True):
+             try:
+                 self.camera.start_streaming()
+             except Exception as e:
+                 print(f"[{self.name}] Failed to start stream: {e}")
+
         while not self.stopped:
             # Get the frame from the underlying camera object
-            ret, frame = self.camera.get_frame()
+            result = self.camera.get_frame()
             
             with self.lock:
-                self.ret = ret
-                if ret and frame is not None:
+                if isinstance(result, tuple):
+                    # Visible camera returns (ret, frame)
+                    self.ret = result[0]
+                    frame = result[1]
+                else:
+                    # Thermal camera returns just frame (or None)
+                    frame = result
+                    self.ret = frame is not None
+                    
+                if self.ret and frame is not None:
                     self.frame = frame.copy()
                     self.timestamp = time.time()
-                elif not ret:
+                elif not self.ret:
                     self.frame = None
                     
             # Small sleep to prevent 100% CPU usage on thread, 

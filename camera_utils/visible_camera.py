@@ -27,7 +27,7 @@ class VisibleCamera:
             print("Warning: Failed to capture frame from visible camera.")
             return False, None
             
-        frame = cv2.resize(frame, (960,616))
+        # frame = cv2.resize(frame, (960,616))
         return True, frame
 
     def is_opened(self):

@@ -5,7 +5,7 @@ YOLO_MODEL_PATH = "yolo11n_headmask.pt"
 UNET_MODEL_PATH = "unet_msfd_model_best.pth"
 
 # Excution time
-DURATION = 600 # second
+DURATION = 30 # second
 
 # Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False

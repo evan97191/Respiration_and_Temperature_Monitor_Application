@@ -33,6 +33,10 @@ class UNetSegmenter:
                 state_dict = {k[len("module."):]: v for k, v in state_dict.items()}
             self.model.load_state_dict(state_dict)
             self.model.to(self.device)
+            # Apply FP16 Half-Precision if using CUDA
+            if self.device.type == 'cuda':
+                self.model.half()
+                print("UNet model converted to FP16 (Half-Precision).")
             self.model.eval() # Set to evaluation mode
             print("UNet model loaded successfully.")
         except FileNotFoundError:
@@ -57,6 +61,10 @@ class UNetSegmenter:
 
         # 3. Resize on GPU using torch functional interpolation
         img_tensor = F.interpolate(img_tensor, size=target_size, mode='bilinear', align_corners=False)
+        
+        # 4. Convert to FP16 Half-Precision if using CUDA
+        if self.device.type == 'cuda':
+            img_tensor = img_tensor.half()
 
         return img_tensor
 
