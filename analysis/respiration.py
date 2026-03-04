@@ -3,14 +3,17 @@
 import numpy as np
 import config # 引入 config 來獲取參數
 
-def update_temperature_queue(new_temp, data_list: list, max_size: int) -> list:
-    """ Adds a new temperature value to a list, maintaining max size. """
+from collections import deque
+
+def update_temperature_queue(new_temp, data_list, max_size: int):
+    """ Adds a new temperature value to a deque, maintaining max size. """
     if new_temp is None: # Don't add None values
         return data_list
 
-    # If list is full, remove the oldest element
-    if len(data_list) >= max_size:
-        data_list.pop(0)
+    # Ensure it's a deque
+    if not isinstance(data_list, deque):
+        data_list = deque(data_list, maxlen=max_size)
+    
     # Add the new temperature
     data_list.append(new_temp)
     return data_list
@@ -21,34 +24,53 @@ def detrend(signal):
     signal_detrended = signal - trend
     return signal_detrended
 
-def calculate_respiration_fft(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM): # 添加預設範圍參數
+def calculate_respiration_fft(temp_list, timestamp_list, fps=None, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM):
     """
     Calculates breathing rate in BPM using FFT, searching within a specified BPM range.
+    Uses timestamps for accurate re-sampling to handle non-uniform framerates.
     
     Args:
         temp_list (list): List of temperature values.
-        fps (float): Sampling frequency in Hz.
+        timestamp_list (list): List of corresponding time stamps.
+        fps (float): (Optional) No longer strictly required if timestamps are used.
         min_bpm (float): Minimum breathing rate to search for (beats per minute).
         max_bpm (float): Maximum breathing rate to search for (beats per minute).
 
     Returns:
         float or None: Estimated breathing rate in BPM, or None if calculation fails.
     """
-    if not temp_list or len(temp_list) < 2:
-        return None
-    if fps <= 0:
-        print(f"Warning: Invalid FPS ({fps}) for FFT calculation.")
+    if not temp_list or len(temp_list) < 2 or not timestamp_list or len(timestamp_list) != len(temp_list):
         return None
 
+    # Use Scipy to resample the signal perfectly evenly
+    from scipy.interpolate import interp1d
+    
     temp_array = np.array(temp_list)
+    time_array = np.array(timestamp_list)
+    
+    # Calculate effective FPS over the window to determine uniform sampling grid
+    total_time = time_array[-1] - time_array[0]
+    if total_time <= 0:
+         return None
+    
+    num_points = len(temp_array)
+    uniform_fps = num_points / total_time
+    
+    # Create uniform time grid
+    uniform_time = np.linspace(time_array[0], time_array[-1], num_points)
+    
+    # Interpolate temperature onto uniform time grid
+    interpolator = interp1d(time_array, temp_array, kind='cubic')
+    resampled_temp_array = interpolator(uniform_time)
 
-    detrend_temp_array = detrend(temp_array)
+    detrend_temp_array = detrend(resampled_temp_array)
+
     N = len(detrend_temp_array)
 
     hamming_window = np.hamming(N)
     windowed_temp_array = detrend_temp_array * hamming_window
 
-    sampling_rate = float(fps)
+    sampling_rate = float(uniform_fps)
 
     try:
         # --- FFT Calculation ---
