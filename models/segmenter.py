@@ -43,35 +43,20 @@ class UNetSegmenter:
             raise
 
     def preprocess(self, img_bgr, target_size=(256, 256)):
-        """Preprocesses BGR image (NumPy) for UNet inference (No PIL)."""
+        """Preprocesses BGR image (NumPy) for UNet inference (Using Torch)."""
         if img_bgr is None:
             return None
 
-        # 1. Convert to RGB
+        # 1. Convert to RGB natively in NumPy
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
-        # 2. Resize
-        dsize = (target_size[1], target_size[0]) # (width, height) for cv2.resize
-        img_rgb_resized = cv2.resize(img_rgb, dsize, interpolation=cv2.INTER_LINEAR)
+        # 2. To PyTorch Tensor and to Device
+        # Convert HWC to CHW and normalize to [0, 1]
+        img_tensor = torch.from_numpy(img_rgb).float() / 255.0
+        img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(self.device)
 
-        # --- Manual ToTensor ---
-        # 3. Type to float32
-        img_float = img_rgb_resized.astype(np.float32)
-        # 4. Scale to [0.0, 1.0]
-        img_normalized = img_float / 255.0
-        # 5. HWC -> CHW
-        img_chw = np.transpose(img_normalized, (2, 0, 1))
-        # 6. To PyTorch Tensor
-        img_tensor = torch.from_numpy(img_chw)
-
-        # --- Optional Normalize ---
-        # if config.UNET_USE_NORMALIZATION: # Add a flag in config if needed
-        #    mean = torch.tensor(config.UNET_MEAN).view(3, 1, 1)
-        #    std = torch.tensor(config.UNET_STD).view(3, 1, 1)
-        #    img_tensor = (img_tensor - mean) / std
-
-        # 7. Add Batch dimension
-        img_tensor = img_tensor.unsqueeze(0)
+        # 3. Resize on GPU using torch functional interpolation
+        img_tensor = F.interpolate(img_tensor, size=target_size, mode='bilinear', align_corners=False)
 
         return img_tensor
 
@@ -79,7 +64,7 @@ class UNetSegmenter:
         """Performs segmentation prediction and returns the mask (NumPy)."""
         if input_tensor is None:
             return None
-        input_tensor = input_tensor.to(self.device)
+        # It's already on the device from preprocess
         try:
             with torch.no_grad():
                 logits = self.model(input_tensor)
