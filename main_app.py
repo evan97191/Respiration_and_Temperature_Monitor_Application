@@ -15,6 +15,7 @@ from utils.visualization import DisplayManager, draw_bounding_box, display_value
 # Import camera handlers
 from camera_utils.thermal_camera import ThermalCameraUVC
 from camera_utils.visible_camera import VisibleCamera
+from camera_utils.camera_thread import CameraThread
 
 # Import image processing
 from image_processing.alignment import calculate_perspective_matrix, apply_perspective, transform_bbox
@@ -52,11 +53,19 @@ def main():
         return # Exit if essential components fail
 
     # --- Initial Setup ---
-    ret_vis, initial_visible_frame = visible_cam.get_frame()
+    # Wrap cameras in threads for non-blocking reads
+    thermal_thread = CameraThread(thermal_cam, name="ThermalThread")
+    visible_thread = CameraThread(visible_cam, name="VisibleThread")
+    
+    # Wait for both cameras to grab their first frames
+    print("Waiting for cameras to initialize...")
+    time.sleep(2.0)
+
+    ret_vis, initial_visible_frame, _ = visible_thread.read()
     if not ret_vis or initial_visible_frame is None:
-        print("FATAL: Failed to get initial visible frame.")
-        thermal_cam.release()
-        visible_cam.release()
+        print("FATAL: Failed to get initial visible frame from thread.")
+        thermal_thread.stop()
+        visible_thread.stop()
         return 0.0, 0.0
     
     print("Waiting for initial YOLO...")
@@ -66,12 +75,10 @@ def main():
     print("Getting initial frames for alignment...")
     initial_thermal_frame = None
     if initial_thermal_frame is None:
-         thermal_cam.start_streaming() # Ensure stream is running
-         initial_thermal_frame = thermal_cam.get_frame()
+         ret_therm, initial_thermal_frame, _ = thermal_thread.read()
          if initial_thermal_frame is None:
               print("Waiting for initial thermal frame...")
               time.sleep(3)
-        #thermal_cam.stop_streaming() # Stop after getting one frame for now  
     
     # Convert initial thermal frame for display during potential point selection
     initial_thermal_display = raw_to_8bit(initial_thermal_frame)
@@ -87,8 +94,8 @@ def main():
         matrix = calculate_perspective_matrix() # Uses config points
     except Exception as e:
         print(f"FATAL: Failed to calculate perspective matrix: {e}")
-        thermal_cam.release()
-        visible_cam.release()
+        thermal_thread.stop()
+        visible_thread.stop()
         display_manager.destroy_windows()
         return 0.0, 0.0
 
@@ -107,6 +114,11 @@ def main():
     output_file_name_no_Unet = "temp_with_no_Unet.txt" # 定義輸出檔案名
     output_file_name_max_temp = "max_temp.txt" # 定義輸出檔案名
     output_file_resp = "resp_list.txt"
+    
+    # Tracking variables
+    tracker = None
+    tracking_active = False
+
     start_time = time.time()
     while True:
 
@@ -114,15 +126,15 @@ def main():
         current_avg_fps = fps_tracker.get_average_fps(default_fps=visible_cam.get_default_fps())
         # print(f"FPS: {current_avg_fps:.2f}") # Optional FPS print
 
-        # 1. Get Frames
-        thermal_data = thermal_cam.get_frame() # Already resized to display size
-        ret_vis, visible_frame = visible_cam.get_frame()
+        # 1. Get Frames from Threads
+        ret_therm, thermal_data, therm_ts = thermal_thread.read() 
+        ret_vis, visible_frame, vis_ts = visible_thread.read()
 
         if not ret_vis or visible_frame is None:
             print("Warning: Skipping loop iteration, failed to get visible frame.")
             time.sleep(0.01) # Avoid busy-waiting
             continue
-        if thermal_data is None:
+        if not ret_therm or thermal_data is None:
              print("Warning: Skipping loop iteration, failed to get thermal frame.")
              time.sleep(0.01)
              continue
@@ -130,10 +142,42 @@ def main():
         # 2. Skip alignment of entire visible frame!
         # We will detect on the raw visible frame, and transform the BBox later
         
-        # 3. Object Detection (YOLO) on visible frame
-        yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
-        largest_box = detector.find_largest_box(yolo_results)
+        # 3. Object Detection (YOLO) OR Tracking (CSRT) on visible frame
+        largest_box = None
         
+        if tracking_active and tracker is not None:
+             # --- RUN TRACKER ---
+            success, box = tracker.update(visible_frame)
+            if success:
+                x, y, w, h = box
+                largest_box = {
+                    'x1': float(x),
+                    'y1': float(y),
+                    'x2': float(x + w),
+                    'y2': float(y + h),
+                    'conf': 1.0, # Tracker doesn't have conf, assume 1.0
+                    'class': 0   # Assume class 0
+                }
+            else:
+                # Tracker lost the object
+                tracking_active = False
+                largest_box = None
+
+        # Fallback to YOLO if tracking failed or not active
+        if not tracking_active:
+             # --- RUN YOLO ---
+            yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+            largest_box = detector.find_largest_box(yolo_results)
+            
+            if largest_box is not None:
+                # Initialize or re-initialize tracker
+                tracker = cv2.TrackerCSRT_create()
+                # OpenCV Tracker expects tuple: (x, y, w, h)
+                bbox_tuple = (int(largest_box['x1']), int(largest_box['y1']), 
+                              int(largest_box['x2'] - largest_box['x1']), int(largest_box['y2'] - largest_box['y1']))
+                tracker.init(visible_frame, bbox_tuple)
+                tracking_active = True
+                
         # 4. Segmentation and Analysis (if box found)
         head_overlay_display = None
         head_segmented_display = None
@@ -317,8 +361,15 @@ def main():
 
 
         # 7. Update Displays
-        display_manager.show(config.WINDOW_CAMERA, frame_to_show)
-        display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
+        if config.SHOW_VISIBLE_CAMERA_UI:
+            display_manager.show(config.WINDOW_CAMERA, frame_to_show)
+        else:
+            display_manager.show(config.WINDOW_CAMERA, None)
+            
+        if config.SHOW_THERMAL_UI:
+            display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
+        else:
+            display_manager.show(config.WINDOW_THERMAL, None)
 
         
 
@@ -387,8 +438,8 @@ def main():
     # --- Cleanup ---
     print(f"FPS : {current_avg_fps}")
     print("Exiting main loop.")
-    thermal_cam.release()
-    visible_cam.release()
+    thermal_thread.stop()
+    visible_thread.stop()
     display_manager.destroy_windows()
     print("Application finished.")
 
