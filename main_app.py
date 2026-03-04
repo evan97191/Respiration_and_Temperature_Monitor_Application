@@ -17,7 +17,7 @@ from camera_utils.thermal_camera import ThermalCameraUVC
 from camera_utils.visible_camera import VisibleCamera
 
 # Import image processing
-from image_processing.alignment import calculate_perspective_matrix, apply_perspective
+from image_processing.alignment import calculate_perspective_matrix, apply_perspective, transform_bbox
 from image_processing.basic_ops import raw_to_8bit, cut_roi, ktoc, create_skin_mask
 
 # Import models
@@ -35,11 +35,11 @@ def main():
     fps_tracker = FPSTracker(buffer_size=10) # Use class based tracker
     display_manager = DisplayManager([
         config.WINDOW_CAMERA,
-        config.WINDOW_THERMAL,
-        config.WINDOW_MASK_OVERLAY,
-        config.WINDOW_MASK_SEGMENTED,
-        config.WINDOW_THERMAL_MASK_SEGMENTED,
-        config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED
+        config.WINDOW_THERMAL
+        # config.WINDOW_MASK_OVERLAY,
+        # config.WINDOW_MASK_SEGMENTED,
+        # config.WINDOW_THERMAL_MASK_SEGMENTED,
+        # config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED
     ], default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
 
     try:
@@ -57,7 +57,7 @@ def main():
         print("FATAL: Failed to get initial visible frame.")
         thermal_cam.release()
         visible_cam.release()
-        return
+        return 0.0, 0.0
     
     print("Waiting for initial YOLO...")
     detector.predict(initial_visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD) #initial yolo
@@ -90,16 +90,17 @@ def main():
         thermal_cam.release()
         visible_cam.release()
         display_manager.destroy_windows()
-        return
+        return 0.0, 0.0
 
     # --- Main Loop ---
 
     
     # thermal_cam.start_streaming() # Start streaming continuously now
-    print("Starting main loop...")
-    temp_data_list = []
-    temp_data_list_no_unet = []
-    max_temp_list = []
+    from collections import deque
+    temp_data_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
+    timestamp_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
+    temp_data_list_no_unet = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
+    max_temp_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
     max_temp = None # Initialize max_temp outside loop
     breathing_rate_bpm_list = []
     output_file_name = "temp_with_Unet.txt" # 定義輸出檔案名
@@ -126,16 +127,11 @@ def main():
              time.sleep(0.01)
              continue
 
-        # 2. Align Visible Frame
-        aligned_visible_frame = apply_perspective(visible_frame, matrix,
-                                                 (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT))
-        if aligned_visible_frame is None:
-            print("Warning: Skipping loop iteration, alignment failed.")
-            time.sleep(0.01)
-            continue
+        # 2. Skip alignment of entire visible frame!
+        # We will detect on the raw visible frame, and transform the BBox later
         
-        # 3. Object Detection (YOLO)
-        yolo_results = detector.predict(aligned_visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+        # 3. Object Detection (YOLO) on visible frame
+        yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
         largest_box = detector.find_largest_box(yolo_results)
         
         # 4. Segmentation and Analysis (if box found)
@@ -145,9 +141,14 @@ def main():
         avg_temp = None # Reset values for this frame
 
         if largest_box is not None:
-            # --- Cut ROI from Aligned Visible Frame ---
-            yolo_head_roi = cut_roi(aligned_visible_frame, largest_box)
-            yolo_head_thermal_roi = cut_roi(raw_to_8bit(thermal_data), largest_box)
+            # Transform visible bbox to thermal bbox using perspective matrix
+            thermal_box = transform_bbox(largest_box, matrix)
+            
+            # --- Cut ROI ---
+            # Cut visible ROI directly for UNet
+            yolo_head_roi = cut_roi(visible_frame, largest_box)
+            # Cut thermal ROI using the transformed box
+            yolo_head_thermal_roi = cut_roi(raw_to_8bit(thermal_data), thermal_box)
             if yolo_head_roi is not None and yolo_head_roi.size > 0:
                 # --- UNet Segmentation ---
                 try:
@@ -175,10 +176,12 @@ def main():
                 # print("Warning: YOLO head ROI is empty or None.") # Can be noisy
                 pass # No head ROI, no segmentation display needed
 
-            # --- Temperature Calculation (using Thermal Data and Box) ---
+            avg_temp_no_unet = calculate_average_pixel_value(raw_to_8bit(thermal_data), thermal_box)
             
-            avg_temp_no_unet = calculate_average_pixel_value(raw_to_8bit(thermal_data), largest_box)
-            avg_temp =  np.mean(mask_segmented_thermal_data, where=mask_segmented_thermal_data != 0)
+            if mask_segmented_thermal_data is not None and np.any(mask_segmented_thermal_data != 0):
+                avg_temp = np.mean(mask_segmented_thermal_data, where=mask_segmented_thermal_data != 0)
+            else:
+                avg_temp = None
             # print(avg_temp)
             # print(f"no unet:{round(avg_temp_no_unet, 2)}, unet:{round(avg_temp, 2)}")
 
@@ -186,7 +189,7 @@ def main():
             
             # --- Temperature Calculation (using skin mask) ---
             if config.SKIN_COLOR_FILTER:
-                thermal_roi = cut_roi(thermal_data, largest_box)
+                thermal_roi = cut_roi(thermal_data, thermal_box)
 
                 skin_mask = create_skin_mask(yolo_head_roi)
                 skin_temperatures = thermal_roi[skin_mask == 255]
@@ -215,7 +218,7 @@ def main():
                         max_temp = None
             else:
                 # ... (原始邏輯) ...
-                thermal_roi = cut_roi(thermal_data, largest_box)
+                thermal_roi = cut_roi(thermal_data, thermal_box)
                 if thermal_roi.size > 0:
                     max_temp = np.max(thermal_roi)
                 else:
@@ -226,6 +229,10 @@ def main():
             # --- Update Temperature Queue ---
             temp_data_list_no_unet = update_temperature_queue(avg_temp_no_unet,  temp_data_list_no_unet, config.TEMPERATURE_QUEUE_MAX_SIZE)
             temp_data_list = update_temperature_queue(avg_temp, temp_data_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
+            
+            # --- Update Timestamp Queue ---
+            if avg_temp is not None:
+                timestamp_list = update_temperature_queue(time.time(), timestamp_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
 
             '''
             # <<< --- 新增：檢查隊列是否已滿，如果滿了就儲存並退出 --- >>>
@@ -281,13 +288,16 @@ def main():
         # 5. Respiration Calculation
         breathing_rate_bpm = None
         valid_temps = [t for t in temp_data_list if t is not None] # Filter None again just in case
-        if len(valid_temps) >= config.RESPIRATION_MIN_DATA_POINTS:
-            breathing_rate_bpm = calculate_respiration_fft(valid_temps, current_avg_fps)
-            breathing_rate_bpm_list.append(breathing_rate_bpm)
+        valid_timestamps = list(timestamp_list)[:len(valid_temps)] # Match lengths exactly in case of misalignments
+        
+        if len(valid_temps) >= config.RESPIRATION_MIN_DATA_POINTS and len(valid_timestamps) == len(valid_temps):
+            breathing_rate_bpm = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
+            if breathing_rate_bpm is not None:
+                breathing_rate_bpm_list.append(breathing_rate_bpm)
 
         # 6. Prepare Frames for Display
         # --- Visible Frame ---
-        frame_to_show = aligned_visible_frame.copy() # Start with aligned frame
+        frame_to_show = visible_frame.copy() 
         if largest_box:
              frame_to_show = draw_bounding_box(frame_to_show, largest_box, color=config.BBOX_COLOR) # Draw YOLO box
         if breathing_rate_bpm is not None:
@@ -301,7 +311,7 @@ def main():
                         config.LABEL_FONT, 1.0, (0, 0, 255), 1)
         else:
             if largest_box:
-                 thermal_frame_display = draw_bounding_box(thermal_frame_display, largest_box, color=config.BBOX_COLOR)
+                 thermal_frame_display = draw_bounding_box(thermal_frame_display, thermal_box, color=config.BBOX_COLOR)
             if max_temp is not None:
                  thermal_frame_display = display_value(thermal_frame_display, max_temp, value_type="Temperature", is_thermal=True)
 
@@ -312,25 +322,25 @@ def main():
 
         
 
-        #
-        # Only show head windows if they were generated
-        if mask_segmented_thermal_data is not None:
-            display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, mask_segmented_thermal_data)
-        else:
-             # Optionally clear the window if no head ROI
-             display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, None) # Show black screen
+        
+        # # Only show head windows if they were generated
+        # if mask_segmented_thermal_data is not None:
+        #     display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, mask_segmented_thermal_data)
+        # else:
+        #      # Optionally clear the window if no head ROI
+        #      display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, None) # Show black screen
 
-        if head_overlay_display is not None:
-             display_manager.show(config.WINDOW_MASK_OVERLAY, head_overlay_display)
-        else:
-             # Optionally clear the window if no head ROI
-             display_manager.show(config.WINDOW_MASK_OVERLAY, None) # Show black screen
+        # if head_overlay_display is not None:
+        #      display_manager.show(config.WINDOW_MASK_OVERLAY, head_overlay_display)
+        # else:
+        #      # Optionally clear the window if no head ROI
+        #      display_manager.show(config.WINDOW_MASK_OVERLAY, None) # Show black screen
 
-        if head_segmented_display is not None:
-             display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
-        else:
-             display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
-        #
+        # if head_segmented_display is not None:
+        #      display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
+        # else:
+        #      display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
+        
 
         print(f"{round(time.time() - start_time, 2)}")  #執行時間
 
@@ -357,18 +367,20 @@ def main():
             # except IOError as e:
             #     print(f"Error saving temperature data to {output_file_resp}: {e}")
 
-            temperature, resp = np.mean(max_temp_list), np.mean(breathing_rate_bpm_list)
+            temperature = np.mean(max_temp_list) if max_temp_list else 0.0
+            resp = np.mean([r for r in breathing_rate_bpm_list if r is not None]) if breathing_rate_bpm_list and any(r is not None for r in breathing_rate_bpm_list) else 0.0
             break
 
         # 8. Handle User Input
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
-            temperature, resp = np.mean(max_temp_list), np.mean(breathing_rate_bpm_list)
+            temperature = np.mean(max_temp_list) if max_temp_list else 0.0
+            resp = np.mean([r for r in breathing_rate_bpm_list if r is not None]) if breathing_rate_bpm_list and any(r is not None for r in breathing_rate_bpm_list) else 0.0
             print("Exit key pressed.")
             break
         elif key == ord('t'): # Test pause
-            print("Pausing for 100 seconds...")
-            time.sleep(100)
+            print("Pausing for 10 seconds...")
+            time.sleep(10)
             print("Resuming...")
             fps_tracker.last_time = time.time() # Reset timer after pause
 
@@ -384,7 +396,10 @@ def main():
     
 
 if __name__ == "__main__":
-    temperature, Resp = main()
-
-    print(f"temperature : {round(temperature, 2)}")
-    print(f"BPM : {round(Resp, 2)}")
+    result = main()
+    if result is not None:
+        temperature, Resp = result
+        print(f"temperature : {round(temperature, 2)}")
+        print(f"BPM : {round(Resp, 2)}")
+    else:
+        print("Application exited with an error.")
