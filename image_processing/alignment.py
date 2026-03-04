@@ -50,3 +50,34 @@ def apply_perspective(frame, matrix, target_size=(config.DISPLAY_WIDTH, config.D
     # Note: target_size should be (width, height) for cv2.warpPerspective
     aligned_frame = cv2.warpPerspective(frame, matrix, target_size)
     return aligned_frame
+
+def transform_bbox(bbox, matrix):
+    """
+    Transforms a bounding box dictionary {x1, y1, x2, y2} using the perspective matrix.
+    Reduces the overhead of warping the entire image.
+    """
+    if bbox is None or matrix is None:
+        return None
+    
+    # Original points of the bounding box
+    points = np.array([
+        [[bbox['x1'], bbox['y1']]],
+        [[bbox['x2'], bbox['y1']]],
+        [[bbox['x2'], bbox['y2']]],
+        [[bbox['x1'], bbox['y2']]]
+    ], dtype=np.float32)
+    
+    # Apply perspective transformation to the 4 corners
+    transformed_points = cv2.perspectiveTransform(points, matrix)
+    
+    # Get the bounding box of the transformed points
+    x_coords = transformed_points[:, 0, 0]
+    y_coords = transformed_points[:, 0, 1]
+    
+    new_bbox = bbox.copy()
+    new_bbox['x1'] = max(0, float(np.min(x_coords)))
+    new_bbox['y1'] = max(0, float(np.min(y_coords)))
+    new_bbox['x2'] = max(0, float(np.max(x_coords)))
+    new_bbox['y2'] = max(0, float(np.max(y_coords)))
+    
+    return new_bbox
