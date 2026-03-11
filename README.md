@@ -42,12 +42,18 @@ respiration-monitor-app/
 ├── config.py                   # 配置文件 (模型路徑, 相機參數, 閾值等)
 ├── README.md                   # 本檔案 - 專案說明
 ├── uvctypes.py                 # libuvc 的 Python ctypes 接口定義
+├── Dockerfile                  # 容器建置腳本
+├── docker-compose.yml          # 容器服務編排檔案
+├── docker_command.txt          # Docker 執行指令參考
+|
+├── *.pth / *.pt                # 各式 YOLO 與 UNet 模型權重檔
 |
 ├── calibrate_v3.py             # 獨立程式：用於相機畫面校準
 ├── crop_face.py                # 獨立程式：用於自動裁剪並儲存臉部圖片
 ├── get_temp.py                 # 獨立程式：用於手動 ROI 溫度量測
 |
 ├── camera_utils/               # 相機相關工具模組
+│   ├── camera_thread.py        # 背景非同步相機擷取執行緒
 │   ├── thermal_camera.py       # 處理 UVC 熱影像相機
 │   └── visible_camera.py       # 處理可見光相機
 |
@@ -145,6 +151,19 @@ respiration-monitor-app/
       * `YOLO_CONF_THRESHOLD`, `UNET_CONF_THRESHOLD`: 可根據實際效果調整偵測和分割的置信度閾值。
   * **執行時間**:
       * `DURATION`: 控制 `main_app.py` 自動執行的總時長（秒）。
+
+## Docker 部署 (Docker Deployment - 推薦)
+
+為了確保套件版本與系統環境一致，強烈建議透過 Docker 來執行本專案：
+
+1. **確認檔案**: 請確保專案目錄下已包含 `Dockerfile` 和 `docker-compose.yml`。
+2. **啟動容器**: 參考 `docker_command.txt` 的指令啟動並進入包含視訊裝置權限的容器環境。
+    ```bash
+    # 範例
+    sudo docker-compose up -d
+    sudo docker exec -it <container_name> bash
+    ```
+3. 進入容器後，直接執行主程式 `python main_app.py` 即可。
 
 ## 使用方法 (Usage)
 
