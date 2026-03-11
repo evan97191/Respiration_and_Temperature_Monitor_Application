@@ -8,6 +8,13 @@
 
 ## 功能特色 (Features)
 
+  * **極致效能最佳化 (Edge Performance Optimizations)**:
+      * **背景非同步讀取**: 透過背景執行緒 (`CameraThread`) 擷取雙鏡頭影像，避開 USB 傳輸與解碼阻塞主程式 FPS。
+      * **局部座標轉換 (BBox Warp)**: 捨棄耗費 CPU 的全畫面透視變換（WarpPerspective），改以僅對邊界框四個頂點進行空間變換後擷取 ROI，運算量大幅下降。
+      * **FP16 混合精度推論**: UNet 分割模型套用 PyTorch `.half()` 半精度計算，完全發揮邊緣運算裝置 (如 NVIDIA Jetson) 的 Tensor Core 效能。
+      * **GPU 影像前處理**: 影像縮放透過 `torch.nn.functional` 直接於 GPU 上執行，去除 CPU 與 GPU 之間多餘的資料搬運開銷。
+      * **訊號重採樣分析**: 呼吸率 (FFT) 分析端加入 `scipy.interpolate` 校正非均勻取樣的時間序列，並搭載嚴謹的 NaN 數值防護確保系統長時間監測不崩潰。
+
   * **雙攝影機影像整合**:
       * 可從 UVC 熱影像攝影機（如 PureThermal）讀取 16 位元原始熱數據流。
       * 透過 GStreamer pipeline 從可見光攝影機（如 CSI 攝影機）高效讀取影像流。
@@ -108,6 +115,7 @@ respiration-monitor-app/
     torch
     torchvision
     ultralytics
+    scipy
     ```
 
     執行安裝：
