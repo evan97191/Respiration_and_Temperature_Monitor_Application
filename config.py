@@ -5,7 +5,7 @@ YOLO_MODEL_PATH = "yolo11n_headmask.pt"
 UNET_MODEL_PATH = "unet_msfd_model_best.pth"
 
 # Excution time
-DURATION = 30 # second
+DURATION = 300 # second
 
 # Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False
@@ -53,6 +53,21 @@ RESPIRATION_MIN_DATA_POINTS = 9 # Minimum points needed for FFT
 # Default FPS if calculation fails
 DEFAULT_FPS = 21 # Adjust based on expected performance
 
+# -- Temperature Extraction Parameters --
+# Method to extract head temperature from ROI: 
+# 'percentile' (recommended, average of top 5% hottest pixels, robust to noise)
+# 'max' (legacy, absolute maximum single pixel, prone to hot-pixel noise)
+TEMP_EXTRACTION_METHOD = 'percentile'
+
+# -- Blackbody Calibration Parameters --
+# Set to True to enable real-time temperature offsetting based on a fixed blackbody source
+ENABLE_BLACKBODY_CALIBRATION = True
+# The preset actual temperature of the blackbody (°C)
+BLACKBODY_TEMP_C = 37.0
+# Fixed ROI for the blackbody in the *thermal* coordinate space (x, y, width, height)
+# You can use get_temp.py to find the exact coordinates of your blackbody in the thermal frame.
+BLACKBODY_ROI = (548, 457, 566, 476)
+
 # -- Visualization Parameters --
 # BBox Color (BGR)
 BBOX_COLOR = (0, 255, 0)
@@ -89,6 +104,10 @@ WINDOW_THERMAL_SKIN_MASK_SEGMENTED = 'THERMAL SKIN MASK Segmented'
 
 SHOW_VISIBLE_CAMERA_UI = True # Toggle to turn off the visible camera popup
 SHOW_THERMAL_UI = True # Toggle to turn off the individual Thermal popup
+SHOW_MASK_OVERLAY_UI = True # Toggle for MASK Overlay window
+SHOW_MASK_SEGMENTED_UI = True # Toggle for MASK Segmented window
+SHOW_THERMAL_MASK_SEGMENTED_UI = True # Toggle for THERMAL MASK Segmented window
+SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = True # Toggle for THERMAL SKIN MASK Segmented window
 # -- Device --
 # Auto-detect CUDA or use CPU
 import torch

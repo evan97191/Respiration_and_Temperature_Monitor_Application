@@ -9,12 +9,12 @@ def ktof(val):
 
 def ktoc(val):
   """Converts Kelvin * 100 to Celsius using correction."""
+  if val is None:
+      return None
   return temp_correction(val) / 100.0
 
 def temp_correction(temp):
     """ Applies polynomial temperature correction. """
-    # Coefficients derived from the original script's polyfit
-    # It's better to calculate this once and store coefficients if possible
     Tx = np.array([30760, 30850, 30950, 31040, 31120, 31260, 31360, 31420, 31520, 31570])
     Tc = np.array([3200, 3300, 3400, 3500, 3600, 3800, 3900, 4000, 4100, 4200])
     z = np.polyfit(Tx, Tc, 2)

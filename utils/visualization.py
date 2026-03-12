@@ -80,7 +80,7 @@ class DisplayManager:
     def show(self, window_name, frame):
         """ Shows a frame in the specified window. """
         if window_name not in self.windows:
-            print(f"Warning: Window '{window_name}' not managed.")
+            # Silently return if window is turned off in config
             return
         if frame is None:
             # Optional: Show a black screen or a "No Data" message

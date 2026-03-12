@@ -34,14 +34,15 @@ def main():
 
     # --- Initialization ---
     fps_tracker = FPSTracker(buffer_size=10) # Use class based tracker
-    display_manager = DisplayManager([
-        config.WINDOW_CAMERA,
-        config.WINDOW_THERMAL,
-        # config.WINDOW_MASK_OVERLAY,
-        config.WINDOW_MASK_SEGMENTED,
-        config.WINDOW_THERMAL_MASK_SEGMENTED
-        # config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED
-    ], default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
+    active_windows = []
+    if getattr(config, 'SHOW_VISIBLE_CAMERA_UI', True): active_windows.append(config.WINDOW_CAMERA)
+    if getattr(config, 'SHOW_THERMAL_UI', True): active_windows.append(config.WINDOW_THERMAL)
+    if getattr(config, 'SHOW_MASK_OVERLAY_UI', True): active_windows.append(config.WINDOW_MASK_OVERLAY)
+    if getattr(config, 'SHOW_MASK_SEGMENTED_UI', True): active_windows.append(config.WINDOW_MASK_SEGMENTED)
+    if getattr(config, 'SHOW_THERMAL_MASK_SEGMENTED_UI', True): active_windows.append(config.WINDOW_THERMAL_MASK_SEGMENTED)
+    if getattr(config, 'SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI', True): active_windows.append(config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED)
+
+    display_manager = DisplayManager(active_windows, default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
 
     try:
         thermal_cam = ThermalCameraUVC(vid=config.THERMAL_VID, pid=config.THERMAL_PID)
@@ -134,7 +135,29 @@ def main():
              time.sleep(0.01)
              continue
 
-        # 2. Skip alignment of entire visible frame!
+        # 2. Blackbody Calibration
+        temperature_offset_c = 0.0
+        temperature_offset_raw = 0.0
+        if getattr(config, 'ENABLE_BLACKBODY_CALIBRATION', False):
+            x1, y1, x2, y2 = config.BLACKBODY_ROI
+            # 自動將 get_temp.py (640x480) 的座標映射回熱像儀原生解析度 (160x120)
+            scale_x = thermal_data.shape[1] / 640.0
+            scale_y = thermal_data.shape[0] / 480.0
+            bx, by = int(x1 * scale_x), int(y1 * scale_y)
+            bw, bh = int((x2 - x1) * scale_x), int((y2 - y1) * scale_y)
+            
+            bx, by = max(0, bx), max(0, by)
+            bw, bh = min(bw, thermal_data.shape[1] - bx), min(bh, thermal_data.shape[0] - by)
+            if bw > 0 and bh > 0:
+                bb_roi = thermal_data[by:by+bh, bx:bx+bw]
+                if bb_roi.size > 0:
+                    bb_temp_raw = np.mean(bb_roi)
+                    bb_temp_c = ktoc(bb_temp_raw)
+                    temperature_offset_c = config.BLACKBODY_TEMP_C - bb_temp_c
+                    # For formula C = (raw - 27315)/100, a delta of 1C means a raw delta of 100.
+                    temperature_offset_raw = temperature_offset_c * 100.0
+
+        # 3. Skip alignment of entire visible frame!
         # We will detect on the raw visible frame, and transform the BBox later
         
         # 3. Object Detection (YOLO) on visible frame
@@ -202,7 +225,12 @@ def main():
                 skin_temperatures = thermal_roi[skin_mask == 255]
 
                 if skin_temperatures.size > 0:
-                    max_temp = np.max(skin_temperatures)
+                    if getattr(config, 'TEMP_EXTRACTION_METHOD', 'percentile') == 'max':
+                        max_temp = np.max(skin_temperatures)
+                    else:
+                        threshold = np.percentile(skin_temperatures, 95)
+                        max_temp = np.mean(skin_temperatures[skin_temperatures >= threshold])
+                    
                     alpha = 0.4
                     thermal_roi_8bit = raw_to_8bit(thermal_roi)
                     color_overlay = np.zeros_like(thermal_roi_8bit)
@@ -219,18 +247,34 @@ def main():
                     display_manager.show(config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED, skin_masked_thermal_data)
                 else:
                     print("在此區域中沒有偵測到皮膚，將使用原始YOLO的ROI計算。")
-                    if thermal_roi.size > 0:
-                        max_temp = np.max(thermal_roi)
+                    if thermal_roi is not None and thermal_roi.size > 0:
+                        if getattr(config, 'TEMP_EXTRACTION_METHOD', 'percentile') == 'max':
+                            max_temp = np.max(thermal_roi)
+                        else:
+                            threshold = np.percentile(thermal_roi, 95)
+                            max_temp = np.mean(thermal_roi[thermal_roi >= threshold])
                     else:
                         max_temp = None
             else:
                 # ... (原始邏輯) ...
                 thermal_roi = cut_roi(thermal_data, thermal_box)
-                if thermal_roi.size > 0:
-                    max_temp = np.max(thermal_roi)
+                if thermal_roi is not None and thermal_roi.size > 0:
+                    if getattr(config, 'TEMP_EXTRACTION_METHOD', 'percentile') == 'max':
+                        max_temp = np.max(thermal_roi)
+                    else:
+                        threshold = np.percentile(thermal_roi, 95)
+                        max_temp = np.mean(thermal_roi[thermal_roi >= threshold])
                 else:
                     max_temp = None
                 
+            # Apply Blackbody Offset
+            if max_temp is not None:
+                max_temp += temperature_offset_raw
+            if avg_temp is not None:
+                avg_temp += temperature_offset_raw
+            if avg_temp_no_unet is not None:
+                avg_temp_no_unet += temperature_offset_raw
+
             temp_val = ktoc(max_temp)
             max_temp_list = update_temperature_queue(temp_val, max_temp_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
             # --- Update Temperature Queue ---
@@ -317,6 +361,16 @@ def main():
             cv2.putText(thermal_frame_display, "Thermal Error", (50, config.DISPLAY_HEIGHT // 2),
                         config.LABEL_FONT, 1.0, (0, 0, 255), 1)
         else:
+            if getattr(config, 'ENABLE_BLACKBODY_CALIBRATION', False):
+                x1, y1, x2, y2 = config.BLACKBODY_ROI
+                scale_x = thermal_frame_display.shape[1] / 640.0
+                scale_y = thermal_frame_display.shape[0] / 480.0
+                bx, by = int(x1 * scale_x), int(y1 * scale_y)
+                bw, bh = int((x2 - x1) * scale_x), int((y2 - y1) * scale_y)
+
+                cv2.rectangle(thermal_frame_display, (bx, by), (bx + bw, by + bh), (255, 0, 0), 2)
+                cv2.putText(thermal_frame_display, f"BB: {temperature_offset_c:+.2f}C", (bx, max(15, by - 5)), config.LABEL_FONT, 0.4, (255, 0, 0), 1)
+
             if largest_box:
                  thermal_frame_display = draw_bounding_box(thermal_frame_display, thermal_box, color=config.BBOX_COLOR)
             if max_temp is not None:
