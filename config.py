@@ -87,8 +87,8 @@ RESP_FONT_SCALE = 3
 RESP_THICKNESS = 3
 
 # Respiration Analysis Range
-RESP_MIN_BPM = 1.0
-RESP_MAX_BPM = 100.0
+RESP_MIN_BPM = 6.0
+RESP_MAX_BPM = 30.0
 
 # Mask Overlay
 MASK_OVERLAY_COLOR = [255, 0, 0] # RGB
