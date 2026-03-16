@@ -18,7 +18,7 @@ from camera_utils.visible_camera import VisibleCamera
 from camera_utils.camera_thread import CameraThread
 
 # Import image processing
-from image_processing.alignment import calculate_perspective_matrix, apply_perspective, transform_bbox
+from image_processing.alignment import calculate_perspective_matrix, transform_bbox
 from image_processing.basic_ops import raw_to_8bit, cut_roi, ktoc, create_skin_mask
 
 # Import models
@@ -26,7 +26,7 @@ from models.detector import YoloDetector
 from models.segmenter import UNetSegmenter
 
 # Import analysis
-from analysis.temperature import calculate_average_pixel_value, calculate_maximum_pixel_value
+from analysis.temperature import calculate_average_pixel_value
 from analysis.respiration import update_temperature_queue, calculate_respiration_fft
 
 def main():
@@ -111,20 +111,17 @@ def main():
     max_temp_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
     max_temp = None # Initialize max_temp outside loop
     breathing_rate_bpm_list = []
-    output_file_name = "temp_with_Unet.txt" # 定義輸出檔案名
-    output_file_name_no_Unet = "temp_with_no_Unet.txt" # 定義輸出檔案名
-    output_file_name_max_temp = "max_temp.txt" # 定義輸出檔案名
-    output_file_resp = "resp_list.txt"
+    breathing_rate_bpm_list = []
     start_time = time.time()
     while True:
 
-        frame_interval = fps_tracker.tick()
+        fps_tracker.tick()
         current_avg_fps = fps_tracker.get_average_fps(default_fps=visible_cam.get_default_fps())
         # print(f"FPS: {current_avg_fps:.2f}") # Optional FPS print
 
         # 1. Get Frames from Threads
-        ret_therm, thermal_data, therm_ts = thermal_thread.read() 
-        ret_vis, visible_frame, vis_ts = visible_thread.read()
+        ret_therm, thermal_data, _ = thermal_thread.read() 
+        ret_vis, visible_frame, _ = visible_thread.read()
 
         if not ret_vis or visible_frame is None:
             print("Warning: Skipping loop iteration, failed to get visible frame.")
@@ -391,11 +388,11 @@ def main():
              # Optionally clear the window if no head ROI
              display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, None) # Show black screen
 
-        # if head_overlay_display is not None:
-        #      display_manager.show(config.WINDOW_MASK_OVERLAY, head_overlay_display)
-        # else:
-        #      # Optionally clear the window if no head ROI
-        #      display_manager.show(config.WINDOW_MASK_OVERLAY, None) # Show black screen
+        if head_overlay_display is not None:
+             display_manager.show(config.WINDOW_MASK_OVERLAY, head_overlay_display)
+        else:
+             # Optionally clear the window if no head ROI
+             display_manager.show(config.WINDOW_MASK_OVERLAY, None) # Show black screen
 
         if head_segmented_display is not None:
              display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)

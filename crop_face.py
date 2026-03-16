@@ -22,8 +22,7 @@ CAMERA_SOURCE = (
 OUTPUT_DIR = "face"               # 儲存裁剪圖片的資料夾名稱
 TARGET_CLASS_ID = 2               # !!! 重要：戴口罩頭部的 Class ID (根據你的模型修改) !!!
 CONF_THRESHOLD = 0.5              # YOLO 偵測的置信度閾值
-CAPTURE_INTERVAL = 0.5            # 截圖間隔 (秒)，0.5 秒即每秒 2 張
-TOTAL_DURATION = 10               # 總執行時間 (秒)
+CONF_THRESHOLD = 0.5              # YOLO 偵測的置信度閾值
 # --- 配置結束 ---
 
 def crop_roi(image, box_coords):
@@ -80,7 +79,7 @@ if __name__ == "__main__":
     results = model(frame, conf=CONF_THRESHOLD, verbose=False)
     # 4. 初始化計時器和計數器
     start_time = time.time()
-    last_capture_time = 0
+    saved_image_count = 0
     saved_image_count = 0
 
     cv2.namedWindow("test", cv2.WINDOW_NORMAL)
@@ -108,7 +107,6 @@ if __name__ == "__main__":
                     try:
                         cv2.imwrite(save_path, cropped_face)
                         saved_image_count += 1
-                        detected_count_this_frame += 1
                         # print(f"Saved: {filename}") # 可以取消註解來看詳細儲存訊息
                     except Exception as e:
                         print(f"儲存圖片時發生錯誤 '{save_path}': {e}")

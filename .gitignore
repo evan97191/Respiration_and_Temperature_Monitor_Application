@@ -172,3 +172,7 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Profiling and Analysis Files
+profile_app.py
+*_profile.txt

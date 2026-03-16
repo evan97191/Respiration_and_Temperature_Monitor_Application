@@ -24,7 +24,7 @@ def detrend(signal):
     signal_detrended = signal - trend
     return signal_detrended
 
-def calculate_respiration_fft(temp_list, timestamp_list, fps=None, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM):
+def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM):
     """
     Calculates breathing rate in BPM using FFT, searching within a specified BPM range.
     Uses timestamps for accurate re-sampling to handle non-uniform framerates.
@@ -32,7 +32,6 @@ def calculate_respiration_fft(temp_list, timestamp_list, fps=None, min_bpm=confi
     Args:
         temp_list (list): List of temperature values.
         timestamp_list (list): List of corresponding time stamps.
-        fps (float): (Optional) No longer strictly required if timestamps are used.
         min_bpm (float): Minimum breathing rate to search for (beats per minute).
         max_bpm (float): Maximum breathing rate to search for (beats per minute).
 

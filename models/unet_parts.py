@@ -1,5 +1,4 @@
 """ Parts of the U-Net model """
-import ctypes
 #ctypes.cdll.LoadLibrary('caffe2_nvrtc.dll')
 import torch
 import torch.nn as nn

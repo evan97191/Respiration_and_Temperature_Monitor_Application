@@ -40,7 +40,7 @@ POINTS_VIS = [[197, 122], [226, 520], [780, 510], [781, 107]]
 # POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
 # YOLO Detection Confidence Threshold
 YOLO_CONF_THRESHOLD = 0.5
-TRACKING_FREQUENCY = 3 # Run YOLO every N frames, use tracker otherwise
+# YOLO configuration
 
 # UNet Segmentation Threshold
 UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is common)

@@ -3,10 +3,6 @@
 import numpy as np
 import cv2
 
-def ktof(val):
-  """Converts Kelvin * 100 to Fahrenheit."""
-  return (1.8 * ktoc(val) + 32.0)
-
 def ktoc(val):
   """Converts Kelvin * 100 to Celsius using correction."""
   if val is None:

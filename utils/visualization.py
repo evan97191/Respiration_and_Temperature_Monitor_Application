@@ -102,15 +102,3 @@ class DisplayManager:
         cv2.destroyAllWindows()
         self.windows = [] # Clear managed windows
         print("Display windows destroyed.")
-
-    def destroy_window(self, window_name):
-        """ Destroys a specific window. """
-        if window_name in self.windows:
-            try:
-                cv2.destroyWindow(window_name)
-                self.windows.remove(window_name)
-                print(f"Window '{window_name}' destroyed.")
-            except cv2.error as e:
-                print(f"Error destroying window '{window_name}': {e}")
-        else:
-             print(f"Warning: Cannot destroy window '{window_name}', it is not managed or already closed.")

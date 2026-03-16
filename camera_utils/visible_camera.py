@@ -30,10 +30,6 @@ class VisibleCamera:
         # frame = cv2.resize(frame, (960,616))
         return True, frame
 
-    def is_opened(self):
-        """Checks if the camera capture is open."""
-        return self.cap.isOpened()
-
     def get_default_fps(self):
         """Returns the default FPS reported by the camera (or fallback)."""
         return self.default_fps
