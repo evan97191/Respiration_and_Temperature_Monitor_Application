@@ -120,8 +120,76 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
 
         breathing_rate_bpm = peak_freq_hz * 60.0
 
-        return breathing_rate_bpm
+        debug_data = {
+            'uniform_time': uniform_time,
+            'resampled_temp': resampled_temp_array,
+            'freqs': freqs,
+            'fft_magnitude': fft_magnitude,
+            'positive_freqs': positive_freqs,
+            'positive_magnitude': positive_magnitude,
+            'min_hz': min_hz,
+            'max_hz': max_hz
+        }
+
+        return breathing_rate_bpm, debug_data
 
     except Exception as e:
         print(f"Error during FFT calculation: {e}")
-        return None
+        return None, None
+
+
+def calculate_fft_raw(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM):
+    """
+    Calculates FFT directly on the pure temperature array without timestamp-based cubic resampling.
+    """
+    if not temp_list or len(temp_list) < 2 or fps <= 0:
+        return None, None
+
+    temp_array = np.array(temp_list)
+    detrend_temp_array = detrend(temp_array)
+
+    N = len(detrend_temp_array)
+    hamming_window = np.hamming(N)
+    windowed_temp_array = detrend_temp_array * hamming_window
+
+    try:
+        freqs = np.fft.fftfreq(N, d=1.0 / fps)
+        fft_values = np.fft.fft(windowed_temp_array)
+        fft_magnitude = np.abs(fft_values)
+
+        min_hz = min_bpm / 60.0
+        max_hz = max_bpm / 60.0
+
+        half_N = N // 2
+        positive_freqs = freqs[:half_N]
+        positive_magnitude = fft_magnitude[:half_N]
+
+        debug_data = {
+            'raw_temp': temp_array,
+            'freqs': freqs,
+            'fft_magnitude': fft_magnitude,
+            'positive_freqs': positive_freqs,
+            'positive_magnitude': positive_magnitude,
+            'min_hz': min_hz,
+            'max_hz': max_hz
+        }
+
+        if len(positive_magnitude) == 0:
+            return None, debug_data
+
+        valid_indices = np.where((positive_freqs >= min_hz) & (positive_freqs <= max_hz))[0]
+        if len(valid_indices) == 0:
+            return None, debug_data
+
+        magnitudes_in_range = positive_magnitude[valid_indices]
+        peak_idx_within = np.argmax(magnitudes_in_range)
+        peak_idx_in_positive = valid_indices[peak_idx_within]
+
+        peak_freq_hz = positive_freqs[peak_idx_in_positive]
+        breathing_rate_bpm = peak_freq_hz * 60.0
+
+        return breathing_rate_bpm, debug_data
+
+    except Exception as e:
+        print(f"Error during raw FFT calculation: {e}")
+        return None, None

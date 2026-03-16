@@ -11,6 +11,7 @@ import config
 # Import utilities
 from utils.timing import FPSTracker
 from utils.visualization import DisplayManager, draw_bounding_box, display_value
+from utils.plot import draw_graph_cv2
 
 # Import camera handlers
 from camera_utils.thermal_camera import ThermalCameraUVC
@@ -27,7 +28,7 @@ from models.segmenter import UNetSegmenter
 
 # Import analysis
 from analysis.temperature import calculate_average_pixel_value
-from analysis.respiration import update_temperature_queue, calculate_respiration_fft
+from analysis.respiration import update_temperature_queue, calculate_respiration_fft, calculate_fft_raw
 
 def main():
     print(f"Using device: {config.DEVICE}")
@@ -41,6 +42,7 @@ def main():
     if getattr(config, 'SHOW_MASK_SEGMENTED_UI', True): active_windows.append(config.WINDOW_MASK_SEGMENTED)
     if getattr(config, 'SHOW_THERMAL_MASK_SEGMENTED_UI', True): active_windows.append(config.WINDOW_THERMAL_MASK_SEGMENTED)
     if getattr(config, 'SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI', True): active_windows.append(config.WINDOW_THERMAL_SKIN_MASK_SEGMENTED)
+    if getattr(config, 'SHOW_ANALYSIS_UI', True): active_windows.append(config.WINDOW_ANALYSIS)
 
     display_manager = DisplayManager(active_windows, default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
 
@@ -335,11 +337,15 @@ def main():
 
         # 5. Respiration Calculation
         breathing_rate_bpm = None
+        debug_data_interp = None
+        debug_data_raw = None
+        
         valid_temps = [t for t in temp_data_list if t is not None] # Filter None again just in case
         valid_timestamps = list(timestamp_list)[:len(valid_temps)] # Match lengths exactly in case of misalignments
         
         if len(valid_temps) >= config.RESPIRATION_MIN_DATA_POINTS and len(valid_timestamps) == len(valid_temps):
-            breathing_rate_bpm = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
+            breathing_rate_bpm, debug_data_interp = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
+            _, debug_data_raw = calculate_fft_raw(valid_temps, current_avg_fps)
             if breathing_rate_bpm is not None:
                 breathing_rate_bpm_list.append(breathing_rate_bpm)
 
@@ -398,6 +404,51 @@ def main():
              display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
         else:
              display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
+
+        # --- Analysis Graphs Display ---
+        if getattr(config, 'SHOW_ANALYSIS_UI', True):
+            plots_canvas = np.zeros((config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH, 3), dtype=np.uint8)
+            h, w = config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH
+            half_h, half_w = h // 2, w // 2
+            
+            if debug_data_raw is not None and debug_data_interp is not None:
+                # Top Left: Raw Temperature
+                draw_graph_cv2(plots_canvas,
+                               data_x=None,
+                               data_y=debug_data_raw['raw_temp'],
+                               color=(0, 255, 255),
+                               rect=(0, 0, half_w, half_h),
+                               title="Raw Temp (temp_data_list)")
+                
+                # Bottom Left: Raw FFT
+                draw_graph_cv2(plots_canvas,
+                               data_x=debug_data_raw['positive_freqs'] * 60, # x is BPM
+                               data_y=debug_data_raw['positive_magnitude'],
+                               color=(255, 100, 100),
+                               rect=(0, half_h, half_w, half_h),
+                               title="Raw FFT",
+                               y_min_fixed=0.0)
+
+                # Top Right: Interpolated Temperature
+                draw_graph_cv2(plots_canvas,
+                               data_x=debug_data_interp['uniform_time'],
+                               data_y=debug_data_interp['resampled_temp'],
+                               color=(0, 255, 0),
+                               rect=(half_w, 0, half_w, half_h),
+                               title="Interp Temp (with Timestamps)")
+                
+                # Bottom Right: Interpolated FFT
+                draw_graph_cv2(plots_canvas,
+                               data_x=debug_data_interp['positive_freqs'] * 60, # x is BPM
+                               data_y=debug_data_interp['positive_magnitude'],
+                               color=(100, 255, 100),
+                               rect=(half_w, half_h, half_w, half_h),
+                               title="Interp FFT",
+                               y_min_fixed=0.0)
+            else:
+                 cv2.putText(plots_canvas, "Gathering data...", (50, half_h), config.LABEL_FONT, 1.0, (255, 255, 255), 1)
+
+            display_manager.show(config.WINDOW_ANALYSIS, plots_canvas)
         
 
         print(f"{round(time.time() - start_time, 2)}")  #執行時間
