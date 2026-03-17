@@ -1,14 +1,14 @@
 # utils/timing.py
 
 import time
+from collections import deque
 import numpy as np
 
 class FPSTracker:
     """ Tracks time intervals and calculates average FPS. """
     def __init__(self, buffer_size=5):
         self.last_time = time.time()
-        self.interval_list = []
-        self.buffer_size = buffer_size
+        self.interval_list = deque(maxlen=buffer_size)
 
     def tick(self):
         """ Call this once per loop iteration to get the interval and update FPS. """
@@ -17,8 +17,6 @@ class FPSTracker:
         self.last_time = current_time
 
         self.interval_list.append(interval)
-        if len(self.interval_list) > self.buffer_size:
-            self.interval_list.pop(0)
 
         return interval
 

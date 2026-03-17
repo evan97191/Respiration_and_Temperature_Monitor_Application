@@ -1,6 +1,7 @@
 # main_app.py
 
 import time
+from collections import deque
 import cv2
 import numpy as np
 import torch # Keep torch import for device check maybe
@@ -106,7 +107,6 @@ def main():
 
     
     # thermal_cam.start_streaming() # Start streaming continuously now
-    from collections import deque
     temp_data_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
     timestamp_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
     temp_data_list_no_unet = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
@@ -133,6 +133,9 @@ def main():
              print("Warning: Skipping loop iteration, failed to get thermal frame.")
              time.sleep(0.01)
              continue
+
+        # --- Cache raw_to_8bit conversion (reused for ROI, avg_temp, and display) ---
+        thermal_8bit = raw_to_8bit(thermal_data)
 
         # 2. Blackbody Calibration
         temperature_offset_c = 0.0
@@ -177,7 +180,7 @@ def main():
             # Cut visible ROI directly for UNet
             yolo_head_roi = cut_roi(visible_frame, largest_box)
             # Cut thermal ROI using the transformed box
-            yolo_head_thermal_roi = cut_roi(raw_to_8bit(thermal_data), thermal_box)
+            yolo_head_thermal_roi = cut_roi(thermal_8bit, thermal_box)
             if yolo_head_roi is not None and yolo_head_roi.size > 0:
                 # --- UNet Segmentation ---
                 try:
@@ -205,7 +208,7 @@ def main():
                 # print("Warning: YOLO head ROI is empty or None.") # Can be noisy
                 pass # No head ROI, no segmentation display needed
 
-            avg_temp_no_unet = calculate_average_pixel_value(raw_to_8bit(thermal_data), thermal_box)
+            avg_temp_no_unet = calculate_average_pixel_value(thermal_8bit, thermal_box)
             
             if mask_segmented_thermal_data is not None and np.any(mask_segmented_thermal_data != 0):
                 avg_temp = np.mean(mask_segmented_thermal_data, where=mask_segmented_thermal_data != 0)
@@ -354,7 +357,7 @@ def main():
              frame_to_show = display_value(frame_to_show, breathing_rate_bpm, value_type="Respiration", is_thermal=False)
 
         # --- Thermal Frame ---
-        thermal_frame_display = raw_to_8bit(thermal_data)
+        thermal_frame_display = thermal_8bit.copy() if thermal_8bit is not None else None
         if thermal_frame_display is None: # Handle potential conversion error
             thermal_frame_display = np.zeros((config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH, 3), dtype=np.uint8)
             cv2.putText(thermal_frame_display, "Thermal Error", (50, config.DISPLAY_HEIGHT // 2),

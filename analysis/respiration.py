@@ -4,6 +4,8 @@ import numpy as np
 import config # 引入 config 來獲取參數
 
 from collections import deque
+from scipy.interpolate import interp1d
+from scipy.signal import butter, filtfilt
 
 def update_temperature_queue(new_temp, data_list, max_size: int):
     """ Adds a new temperature value to a deque, maintaining max size. """
@@ -24,6 +26,23 @@ def detrend(signal):
     signal_detrended = signal - trend
     return signal_detrended
 
+def butter_bandpass(lowcut, highcut, fs, order=5):
+    """ Designs a Butterworth bandpass filter. """
+    nyq = 0.5 * fs
+    low = lowcut / nyq
+    high = highcut / nyq
+    # Ensure 'low' and 'high' are strictly bounded between 0.0 and 1.0
+    low = max(1e-5, min(low, 0.999))
+    high = max(low + 1e-5, min(high, 0.999))
+    b, a = butter(order, [low, high], btype='band')
+    return b, a
+
+def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
+    """ Applies a Butterworth bandpass filter using filtfilt (zero-phase). """
+    b, a = butter_bandpass(lowcut, highcut, fs, order=order)
+    y = filtfilt(b, a, data)
+    return y
+
 def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM):
     """
     Calculates breathing rate in BPM using FFT, searching within a specified BPM range.
@@ -41,9 +60,6 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
     if not temp_list or len(temp_list) < 2 or not timestamp_list or len(timestamp_list) != len(temp_list):
         return None, None
 
-    # Use Scipy to resample the signal perfectly evenly
-    from scipy.interpolate import interp1d
-    
     temp_array = np.array(temp_list)
     time_array = np.array(timestamp_list)
     
@@ -61,23 +77,6 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
     # Interpolate temperature onto uniform time grid
     interpolator = interp1d(time_array, temp_array, kind='cubic')
     resampled_temp_array = interpolator(uniform_time)
-
-    from scipy.signal import butter, filtfilt
-
-    def butter_bandpass(lowcut, highcut, fs, order=5):
-        nyq = 0.5 * fs
-        low = lowcut / nyq
-        high = highcut / nyq
-        # Ensure 'low' and 'high' are strictly bounded between 0.0 and 1.0
-        low = max(1e-5, min(low, 0.999))
-        high = max(low + 1e-5, min(high, 0.999))
-        b, a = butter(order, [low, high], btype='band')
-        return b, a
-
-    def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
-        b, a = butter_bandpass(lowcut, highcut, fs, order=order)
-        y = filtfilt(b, a, data)
-        return y
 
     min_hz = min_bpm / 60.0
     max_hz = max_bpm / 60.0
