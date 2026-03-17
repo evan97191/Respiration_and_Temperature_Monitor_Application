@@ -52,6 +52,10 @@ TEMPERATURE_QUEUE_MAX_SIZE = 10 * 9
 RESPIRATION_MIN_DATA_POINTS = 9 # Minimum points needed for FFT
 # Default FPS if calculation fails
 DEFAULT_FPS = 21 # Adjust based on expected performance
+# FFT zero-padding factor (improves spectral peak detection precision, 4 = 4x interpolation)
+FFT_ZERO_PAD_FACTOR = 4
+# Minimum samples needed before applying Butterworth bandpass filter
+BANDPASS_FILTER_MIN_SAMPLES = 30
 
 # -- Temperature Extraction Parameters --
 # Method to extract head temperature from ROI: 
