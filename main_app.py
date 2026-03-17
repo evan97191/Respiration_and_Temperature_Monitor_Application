@@ -269,19 +269,19 @@ def main():
             # Apply Blackbody Offset
             if max_temp is not None:
                 max_temp += temperature_offset_raw
-            if avg_temp is not None:
-                avg_temp += temperature_offset_raw
-            if avg_temp_no_unet is not None:
-                avg_temp_no_unet += temperature_offset_raw
+            # if avg_temp is not None:
+            #     avg_temp += temperature_offset_raw
+            # if avg_temp_no_unet is not None:
+            #     avg_temp_no_unet += temperature_offset_raw
 
             temp_val = ktoc(max_temp)
             max_temp_list = update_temperature_queue(temp_val, max_temp_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
             # --- Update Temperature Queue ---
             temp_data_list_no_unet = update_temperature_queue(avg_temp_no_unet,  temp_data_list_no_unet, config.TEMPERATURE_QUEUE_MAX_SIZE)
-            temp_data_list = update_temperature_queue(avg_temp, temp_data_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
             
-            # --- Update Timestamp Queue ---
+            # --- Update Temperature & Timestamp Queues (synchronized) ---
             if avg_temp is not None:
+                temp_data_list = update_temperature_queue(avg_temp, temp_data_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
                 timestamp_list = update_temperature_queue(time.time(), timestamp_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
 
             '''
@@ -328,11 +328,7 @@ def main():
             # <<< --- 檢查結束 --- >>>
 
         else: # No largest box found
-            # temp_data_list = [] #Reset if no box
-            # temp_data_list_no_unet = []
-            # max_temp_list = []
-            # max_temp = None # Reset max_temp if no box
-            pass
+            max_temp = None # Reset max_temp so UI won't display stale values
         
 
         # 5. Respiration Calculation
