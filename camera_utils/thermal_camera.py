@@ -42,11 +42,11 @@ def py_frame_callback(frame, userptr):
     global frame_queue
     try:
         array_pointer = cast(frame.contents.data, POINTER(c_uint16 * (frame.contents.width * frame.contents.height)))
-        data = np.frombuffer(
+        data = np.copy(np.frombuffer(
             array_pointer.contents, dtype=np.dtype(np.uint16)
-        ).reshape(
+        )).reshape(
             frame.contents.height, frame.contents.width
-        ) # no copy
+        )
 
         if frame.contents.data_bytes != (2 * frame.contents.width * frame.contents.height):
             print("Warning: Thermal frame data bytes mismatch.")
