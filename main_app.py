@@ -70,7 +70,7 @@ def main():
         print("FATAL: Failed to get initial visible frame from thread.")
         thermal_thread.stop()
         visible_thread.stop()
-        return 0.0, 0.0
+        return None
     
     print("Waiting for initial YOLO...")
     detector.predict(initial_visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD) #initial yolo
@@ -78,11 +78,11 @@ def main():
     # Get initial frames for perspective calculation
     print("Getting initial frames for alignment...")
     initial_thermal_frame = None
+    ret_therm, initial_thermal_frame, _ = thermal_thread.read()
     if initial_thermal_frame is None:
+         print("Waiting for initial thermal frame...")
+         time.sleep(3)
          ret_therm, initial_thermal_frame, _ = thermal_thread.read()
-         if initial_thermal_frame is None:
-              print("Waiting for initial thermal frame...")
-              time.sleep(3)
     
     # Convert initial thermal frame for display during potential point selection
     initial_thermal_display = raw_to_8bit(initial_thermal_frame)
@@ -101,7 +101,7 @@ def main():
         thermal_thread.stop()
         visible_thread.stop()
         display_manager.destroy_windows()
-        return 0.0, 0.0
+        return None
 
     # --- Main Loop ---
 
@@ -112,7 +112,6 @@ def main():
     temp_data_list_no_unet = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
     max_temp_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
     max_temp = None # Initialize max_temp outside loop
-    breathing_rate_bpm_list = []
     breathing_rate_bpm_list = []
     start_time = time.time()
     while True:
@@ -287,48 +286,7 @@ def main():
                 temp_data_list = update_temperature_queue(avg_temp, temp_data_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
                 timestamp_list = update_temperature_queue(time.time(), timestamp_list, config.TEMPERATURE_QUEUE_MAX_SIZE)
 
-            '''
-            # <<< --- 新增：檢查隊列是否已滿，如果滿了就儲存並退出 --- >>>
-            if len(temp_data_list) >= config.TEMPERATURE_QUEUE_MAX_SIZE:
-                print(f"Temperature data queue reached target size ({config.TEMPERATURE_QUEUE_MAX_SIZE}). Saving data and exiting...")
-                try:
-                    with open(output_file_name, "w") as f:
-                        for temp_value in temp_data_list:
-                            if temp_value is not None:
-                                f.write(f"{temp_value}\n") # 寫入數值
-                            else:
-                                f.write("None\n") # 或者寫入 NaN 或空行，取決於你的需求
-                    print(f"Temperature data saved successfully to {output_file_name}.")
-                except IOError as e:
-                    print(f"Error saving temperature data to {output_file_name}: {e}")
 
-                try:
-                    with open(output_file_name_no_Unet, "w") as f:
-                        for temp_value in temp_data_list_no_unet:
-                            if temp_value is not None:
-                                f.write(f"{temp_value}\n") # 寫入數值
-                            else:
-                                f.write("None\n") # 或者寫入 NaN 或空行，取決於你的需求
-                    print(f"Temperature data saved successfully to {output_file_name_no_Unet}.")
-                except IOError as e:
-                    print(f"Error saving temperature data to {output_file_name_no_Unet}: {e}")
-
-                try:
-                    with open(output_file_name_max_temp, "w") as f:
-                        for temp_value in max_temp_list:
-                            if temp_value is not None:
-                                f.write(f"{temp_value}\n") # 寫入數值
-                            else:
-                                f.write("None\n") # 或者寫入 NaN 或空行，取決於你的需求
-                    print(f"Temperature data saved successfully to {output_file_name_max_temp}.")
-                except IOError as e:
-                    print(f"Error saving temperature data to {output_file_name_max_temp}: {e}")
-
-                # 不論儲存是否成功，都退出主迴圈
-                break # <--- 退出 while True 迴圈
-            '''
-            
-            # <<< --- 檢查結束 --- >>>
 
         else: # No largest box found
             max_temp = None # Reset max_temp so UI won't display stale values
@@ -453,28 +411,6 @@ def main():
         print(f"{round(time.time() - start_time, 2)}")  #執行時間
 
         if time.time() - start_time > config.DURATION :
-            # try:
-            #     with open(output_file_name_max_temp, "w") as f:
-            #         for temp_value in max_temp_list:
-            #             if temp_value is not None:
-            #                 f.write(f"{temp_value}\n") # 寫入數值
-            #             else:
-            #                 f.write("None\n") # 或者寫入 NaN 或空行，取決於你的需求
-            #     print(f"Temperature data saved successfully to {output_file_name_max_temp}.")
-            # except IOError as e:
-            #     print(f"Error saving temperature data to {output_file_name_max_temp}: {e}")
-            
-            # try:
-            #     with open(output_file_resp, "w") as f:
-            #         for resp in breathing_rate_bpm_list:
-            #             if resp is not None:
-            #                 f.write(f"{resp}\n") # 寫入數值
-            #             else:
-            #                 f.write("None\n") # 或者寫入 NaN 或空行，取決於你的需求
-            #     print(f"Temperature data saved successfully to {output_file_resp}.")
-            # except IOError as e:
-            #     print(f"Error saving temperature data to {output_file_resp}: {e}")
-
             temperature = np.mean(max_temp_list) if max_temp_list else 0.0
             resp = np.mean([r for r in breathing_rate_bpm_list if r is not None]) if breathing_rate_bpm_list and any(r is not None for r in breathing_rate_bpm_list) else 0.0
             break
