@@ -49,11 +49,13 @@ UNET_INPUT_SIZE = (256, 256)
 
 # -- Analysis Parameters --
 TEMPERATURE_QUEUE_MAX_SIZE = 15 * 9
-RESPIRATION_MIN_DATA_POINTS = 9 # Minimum points needed for FFT
+RESPIRATION_MIN_DATA_POINTS = 30 # Minimum points needed for FFT
 # Default FPS if calculation fails
 DEFAULT_FPS = 21 # Adjust based on expected performance
 # FFT zero-padding factor (improves spectral peak detection precision, 4 = 4x interpolation)
 FFT_ZERO_PAD_FACTOR = 4
+# FFT Minimum target_length (improves spectral peak detection precision)
+TARGET_FFT_LEN = 1024
 # Minimum samples needed before applying Butterworth bandpass filter
 BANDPASS_FILTER_MIN_SAMPLES = 30
 
