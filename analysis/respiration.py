@@ -6,6 +6,7 @@ import config # 引入 config 來獲取參數
 from collections import deque
 from scipy.interpolate import interp1d
 from scipy.signal import butter, sosfiltfilt
+import scipy.fftpack
 
 def update_temperature_queue(new_temp, data_list, max_size: int):
     """ Adds a new temperature value to a deque, maintaining max size. """
@@ -75,7 +76,7 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
     uniform_time = np.linspace(time_array[0], time_array[-1], num_points)
     
     # Interpolate temperature onto uniform time grid
-    interpolator = interp1d(time_array, temp_array, kind='cubic')
+    interpolator = interp1d(time_array, temp_array, kind='linear')
     resampled_temp_array = interpolator(uniform_time)
 
     min_hz = min_bpm / 60.0
@@ -104,7 +105,8 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
         # --- FFT Calculation with Zero-Padding ---
         # Zero-padding improves spectral peak detection precision
         zero_pad_factor = getattr(config, 'FFT_ZERO_PAD_FACTOR', 4)
-        n_fft = N * zero_pad_factor
+        target_length = N * zero_pad_factor
+        n_fft = scipy.fftpack.next_fast_len(target_length)
         freqs = np.fft.fftfreq(n_fft, d=1.0 / sampling_rate)
         fft_values = np.fft.fft(windowed_temp_array, n=n_fft)
         fft_magnitude = np.abs(fft_values)
@@ -121,7 +123,7 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
 
         debug_data = {
             'uniform_time': uniform_time,
-            'resampled_temp': resampled_temp_array,
+            'resampled_temp': detrend_temp_array,
             'freqs': freqs,
             'fft_magnitude': fft_magnitude,
             'positive_freqs': positive_freqs,
