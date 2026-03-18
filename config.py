@@ -46,6 +46,8 @@ YOLO_CONF_THRESHOLD = 0.5
 UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is common)
 # UNet Model Input Size (Height, Width) - MUST MATCH TRAINING
 UNET_INPUT_SIZE = (256, 256)
+# erode kernel size for Unet predicted mask
+KERNEL_SIZE = 9
 
 # -- Analysis Parameters --
 TEMPERATURE_QUEUE_MAX_SIZE = 15 * 9
@@ -55,7 +57,7 @@ DEFAULT_FPS = 21 # Adjust based on expected performance
 # FFT zero-padding factor (improves spectral peak detection precision, 4 = 4x interpolation)
 FFT_ZERO_PAD_FACTOR = 4
 # FFT Minimum target_length (improves spectral peak detection precision)
-TARGET_FFT_LEN = 1024
+TARGET_FFT_LEN = 2048
 # Minimum samples needed before applying Butterworth bandpass filter
 BANDPASS_FILTER_MIN_SAMPLES = 30
 

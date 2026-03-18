@@ -105,6 +105,8 @@ def main():
 
     # --- Main Loop ---
 
+    # Erode kernel for Unet predicted mask
+    erode_kernel = np.ones((config.KERNEL_SIZE, config.KERNEL_SIZE), np.uint8)
     
     # thermal_cam.start_streaming() # Start streaming continuously now
     temp_data_list = deque(maxlen=config.TEMPERATURE_QUEUE_MAX_SIZE)
@@ -186,6 +188,10 @@ def main():
                     input_tensor = segmenter.preprocess(yolo_head_roi, target_size=config.UNET_INPUT_SIZE)
                     pred_mask_np = segmenter.predict(input_tensor, threshold=config.UNET_CONF_THRESHOLD)
                     if pred_mask_np is not None:
+                        # Erode predicted mask
+                        mask_uint8 = pred_mask_np.astype(np.uint8)
+                        pred_mask_np = cv2.erode(mask_uint8, erode_kernel, iterations=1)
+
                         # --- Visualization of Segmentation ---
                         head_overlay_display = segmenter.overlay_mask(yolo_head_roi, pred_mask_np,
                                                                       color=config.MASK_OVERLAY_COLOR,
