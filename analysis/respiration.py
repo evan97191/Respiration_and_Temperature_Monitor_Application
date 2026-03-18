@@ -106,7 +106,8 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
         # Zero-padding improves spectral peak detection precision
         zero_pad_factor = getattr(config, 'FFT_ZERO_PAD_FACTOR', 4)
         target_length = N * zero_pad_factor
-        n_fft = scipy.fftpack.next_fast_len(target_length)
+        final_length = max(config.TARGET_FFT_LEN, target_length)
+        n_fft = scipy.fftpack.next_fast_len(final_length)
         freqs = np.fft.fftfreq(n_fft, d=1.0 / sampling_rate)
         fft_values = np.fft.fft(windowed_temp_array, n=n_fft)
         fft_magnitude = np.abs(fft_values)

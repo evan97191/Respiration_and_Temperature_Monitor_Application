@@ -48,7 +48,7 @@ UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is commo
 UNET_INPUT_SIZE = (256, 256)
 
 # -- Analysis Parameters --
-TEMPERATURE_QUEUE_MAX_SIZE = 10 * 9
+TEMPERATURE_QUEUE_MAX_SIZE = 15 * 9
 RESPIRATION_MIN_DATA_POINTS = 9 # Minimum points needed for FFT
 # Default FPS if calculation fails
 DEFAULT_FPS = 21 # Adjust based on expected performance
