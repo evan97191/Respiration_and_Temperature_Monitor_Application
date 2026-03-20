@@ -47,7 +47,7 @@ UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is commo
 # UNet Model Input Size (Height, Width) - MUST MATCH TRAINING
 UNET_INPUT_SIZE = (256, 256)
 # erode kernel size for Unet predicted mask
-KERNEL_SIZE = 9
+KERNEL_SIZE = 11
 
 # -- Analysis Parameters --
 TEMPERATURE_QUEUE_MAX_SIZE = 15 * 9
@@ -65,7 +65,7 @@ BANDPASS_FILTER_MIN_SAMPLES = 30
 # Method to extract head temperature from ROI: 
 # 'percentile' (recommended, average of top 5% hottest pixels, robust to noise)
 # 'max' (legacy, absolute maximum single pixel, prone to hot-pixel noise)
-TEMP_EXTRACTION_METHOD = 'percentile'
+TEMP_EXTRACTION_METHOD = 'max'
 
 # -- Blackbody Calibration Parameters --
 # Set to True to enable real-time temperature offsetting based on a fixed blackbody source
@@ -113,7 +113,7 @@ WINDOW_ANALYSIS = 'Analysis Graphs'
 
 SHOW_VISIBLE_CAMERA_UI = True # Toggle to turn off the visible camera popup
 SHOW_THERMAL_UI = True # Toggle to turn off the individual Thermal popup
-SHOW_MASK_OVERLAY_UI = False # Toggle for MASK Overlay window
+SHOW_MASK_OVERLAY_UI = True # Toggle for MASK Overlay window
 SHOW_MASK_SEGMENTED_UI = False # Toggle for MASK Segmented window
 SHOW_THERMAL_MASK_SEGMENTED_UI = True # Toggle for THERMAL MASK Segmented window
 SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = False # Toggle for THERMAL SKIN MASK Segmented window

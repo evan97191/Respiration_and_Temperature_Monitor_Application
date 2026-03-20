@@ -189,8 +189,8 @@ def main():
                     pred_mask_np = segmenter.predict(input_tensor, threshold=config.UNET_CONF_THRESHOLD)
                     if pred_mask_np is not None:
                         # Erode predicted mask
-                        mask_uint8 = pred_mask_np.astype(np.uint8)
-                        pred_mask_np = cv2.erode(mask_uint8, erode_kernel, iterations=1)
+                        pred_mask_np = pred_mask_np.astype(np.uint8, copy=False)
+                        cv2.erode(pred_mask_np, erode_kernel, dst=pred_mask_np, iterations=1)
 
                         # --- Visualization of Segmentation ---
                         head_overlay_display = segmenter.overlay_mask(yolo_head_roi, pred_mask_np,
