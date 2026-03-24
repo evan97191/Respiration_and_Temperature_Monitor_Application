@@ -231,3 +231,11 @@ respiration-monitor-app/
   * **MSFD**: https://github.com/sadjadrz/MFSD
   * **YOLO helmet/head**: https://www.kaggle.com/datasets/vodan37/yolo-helmethead
   * **Mask-Detection-Dataset**: https://github.com/archie9211/Mask-Detection-Dataset
+
+## Copyright & License
+
+© 2026 Evan. All Rights Reserved.
+
+This project is developed for academic and research purposes. All source code and materials in this repository are the property of the author. You may view and read the code for reference, but you may NOT copy, distribute, modify, or use it for commercial or non-commercial purposes without explicit written permission.
+
+**Disclaimer:** This system is for academic research and experimental purposes only. It is NOT intended for medical diagnosis, physiological monitoring, or treatment. The author provides no warranty and assumes no liability for any use of this software.
