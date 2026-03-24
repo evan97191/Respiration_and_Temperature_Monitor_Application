@@ -172,3 +172,16 @@ cython_debug/
 
 # PyPI configuration file
 .pypirc
+
+# Profiling and Analysis Files
+profile_app.py
+*_profile.txt
+
+# Generated TensorRT and ONNX Models
+*.engine
+*.onnx
+
+# Testing Framework Artifacts & Data
+test_data/
+benchmark_result.json
+hardware_stats.csv

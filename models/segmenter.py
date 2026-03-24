@@ -19,11 +19,17 @@ except ImportError:
 
 
 class UNetSegmenter:
-    """Handles UNet image segmentation."""
+    """Handles UNet image segmentation (PyTorch or TensorRT)."""
 
     def __init__(self, model_path, device, n_channels=3, n_classes=1, bilinear=True):
         print(f"Loading UNet model from: {model_path}")
         self.device = device
+        self.is_trt = str(model_path).endswith('.engine') or str(model_path).endswith('.trt')
+        
+        if self.is_trt:
+            self._init_trt(model_path)
+            return
+
         self.model = UNet(n_channels=n_channels, n_classes=n_classes, bilinear=bilinear)
 
         try:
@@ -33,12 +39,11 @@ class UNetSegmenter:
                 state_dict = {k[len("module."):]: v for k, v in state_dict.items()}
             self.model.load_state_dict(state_dict)
             self.model.to(self.device)
-            # Apply FP16 Half-Precision if using CUDA
-            if self.device.type == 'cuda':
-                self.model.half()
-                print("UNet model converted to FP16 (Half-Precision).")
+            
+            # Removed self.model.half() as per user request to maintain stability for export
+            
             self.model.eval() # Set to evaluation mode
-            print("UNet model loaded successfully.")
+            print("UNet model loaded successfully (PyTorch FP32).")
         except FileNotFoundError:
             print(f"Error: UNet model file not found at {model_path}")
             raise
@@ -46,8 +51,43 @@ class UNetSegmenter:
             print(f"Error loading UNet state dict: {e}")
             raise
 
+    def _init_trt(self, model_path):
+        import tensorrt as trt
+        print("Initializing TensorRT engine for UNet...")
+        self.logger = trt.Logger(trt.Logger.WARNING)
+        trt.init_libnvinfer_plugins(self.logger, namespace="")
+        with open(model_path, "rb") as f, trt.Runtime(self.logger) as runtime:
+            self.engine = runtime.deserialize_cuda_engine(f.read())
+        self.context = self.engine.create_execution_context()
+        
+        self.inputs = []
+        self.outputs = []
+        self.stream = torch.cuda.Stream() # Use non-default stream to satisfy TRT 10+
+        
+        # Parse bindings using the TRT 10+ V3 API
+        for i in range(self.engine.num_io_tensors):
+            name = self.engine.get_tensor_name(i)
+            is_input = self.engine.get_tensor_mode(name) == trt.TensorIOMode.INPUT
+            
+            shape = self.engine.get_tensor_shape(name)
+            if shape[0] == -1:
+                shape = (1,) + shape[1:]
+            
+            dtype = trt.nptype(self.engine.get_tensor_dtype(name))
+            torch_dtype = torch.from_numpy(np.empty(0, dtype=dtype)).dtype
+            # Pre-allocate PyTorch tensor mapped to GPU
+            tensor = torch.empty(tuple(shape), dtype=torch_dtype, device=self.device)
+            self.context.set_tensor_address(name, tensor.data_ptr())
+            
+            if is_input:
+                self.inputs.append(tensor)
+            else:
+                self.outputs.append(tensor)
+                
+        print("TensorRT UNet engine loaded successfully.")
+
     def preprocess(self, img_bgr, target_size=(256, 256)):
-        """Preprocesses BGR image (NumPy) for UNet inference (Using Torch)."""
+        """Preprocesses BGR image (NumPy) for inference."""
         if img_bgr is None:
             return None
 
@@ -55,16 +95,17 @@ class UNetSegmenter:
         img_rgb = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2RGB)
 
         # 2. To PyTorch Tensor and to Device
-        # Convert HWC to CHW and normalize to [0, 1]
         img_tensor = torch.from_numpy(img_rgb).float() / 255.0
         img_tensor = img_tensor.permute(2, 0, 1).unsqueeze(0).to(self.device)
 
         # 3. Resize on GPU using torch functional interpolation
         img_tensor = F.interpolate(img_tensor, size=target_size, mode='bilinear', align_corners=False)
         
-        # 4. Convert to FP16 Half-Precision if using CUDA
-        if self.device.type == 'cuda':
+        # 4. If using TRT, it may require FP16 input natively depending on engine creation
+        if self.is_trt and self.inputs[0].dtype == torch.float16:
             img_tensor = img_tensor.half()
+        elif not self.is_trt:
+            pass # Keep FP32 for PyTorch
 
         return img_tensor
 
@@ -72,17 +113,27 @@ class UNetSegmenter:
         """Performs segmentation prediction and returns the mask (NumPy)."""
         if input_tensor is None:
             return None
-        # It's already on the device from preprocess
+            
         try:
-            with torch.no_grad():
-                logits = self.model(input_tensor)
-                # Assuming binary classification (n_classes=1)
-                probs = torch.sigmoid(logits)
-                pred_mask = (probs > threshold).float()
+            if self.is_trt:
+                # Use custom stream for memory copy and execution
+                with torch.cuda.stream(self.stream):
+                    # Copy dynamic input to the static binding memory address
+                    self.inputs[0].copy_(input_tensor.contiguous(), non_blocking=True)
+                    # Fire the asynchronous TRT execution (V3 API) with the non-default stream
+                    self.context.execute_async_v3(stream_handle=self.stream.cuda_stream)
+                
+                # Synchronize stream before fetching output
+                self.stream.synchronize()
+                logits = self.outputs[0]
+            else:
+                with torch.no_grad():
+                    logits = self.model(input_tensor)
+            
+            probs = torch.sigmoid(logits.float()) # calculate Sigmoid on FP32 stability
+            pred_mask = (probs > threshold).float()
 
-            # Move mask to CPU and convert to NumPy
-            pred_mask_np = pred_mask.squeeze().cpu().numpy()
-            return pred_mask_np
+            return pred_mask.squeeze().cpu().numpy()
         except Exception as e:
             print(f"Error during UNet prediction: {e}")
             return None

@@ -9,11 +9,11 @@
 ## 功能特色 (Features)
 
   * **極致效能最佳化 (Edge Performance Optimizations)**:
-      * **背景非同步讀取**: 透過背景執行緒 (`CameraThread`) 擷取雙鏡頭影像，避開 USB 傳輸與解碼阻塞主程式 FPS。
-      * **局部座標轉換 (BBox Warp)**: 捨棄耗費 CPU 的全畫面透視變換（WarpPerspective），改以僅對邊界框四個頂點進行空間變換後擷取 ROI，運算量大幅下降。
-      * **FP16 混合精度推論**: UNet 分割模型套用 PyTorch `.half()` 半精度計算，完全發揮邊緣運算裝置 (如 NVIDIA Jetson) 的 Tensor Core 效能。
-      * **GPU 影像前處理**: 影像縮放透過 `torch.nn.functional` 直接於 GPU 上執行，去除 CPU 與 GPU 之間多餘的資料搬運開銷。
-      * **訊號重採樣分析**: 呼吸率 (FFT) 分析端加入 `scipy.interpolate` 校正非均勻取樣的時間序列，並搭載嚴謹的 NaN 數值防護確保系統長時間監測不崩潰。
+      * **TensorRT FP16 引擎加速**: YOLOv11n 與 U-Net 均已轉換為 TensorRT `.engine`，並完全遷移至 **TensorRT V3 API** (Pointer-based) 以達成零拷貝 (Zero-copy) 傳輸，Orin NX 上的推論延遲分別壓低至 ~27ms 與 ~25ms。
+      * **背景非同步與硬體監控**: 除了非同步影像擷取，系統還實作了基於 `jtop` (`jetson-stats`) 的背景硬體監控，能即時錄製 CPU/GPU 使用率與系統功耗。
+      * **自動化基準測試 (Benchmarking)**: 導入 `MockCamera` 框架，可讀取預錄的 16-bit 原始數據 (`.npy`)，排除了實體環境變因，確保效能測試 100% 可復現。
+      * **局部座標轉換 (BBox Warp)**: 僅對由 YOLO 產生的邊界框進行透視變換，大幅減少 CPU 運算開銷。
+      * **UI 渲染降頻 (Decimation)**: 針對 OpenCV 繪圖瓶頸，支援 `SHOW_ANALYSIS_UI` 開關，在極限效能測試時可停用 UI 以釋放算力。
 
   * **雙攝影機影像整合**:
       * 可從 UVC 熱影像攝影機（如 PureThermal）讀取 16 位元原始熱數據流。
@@ -49,6 +49,7 @@ respiration-monitor-app/
 ├── *.pth / *.pt                # 各式 YOLO 與 UNet 模型權重檔
 |
 ├── calibrate_v3.py             # 獨立程式：用於相機畫面校準
+├── record_test_data.py         # 獨立程式：用於錄製 16-bit 原始輻射數據供基準測試使用
 ├── crop_face.py                # 獨立程式：用於自動裁剪並儲存臉部圖片
 ├── get_temp.py                 # 獨立程式：用於手動 ROI 溫度量測
 |
@@ -62,8 +63,8 @@ respiration-monitor-app/
 │   └── basic_ops.py            # 基本圖像操作 (格式轉換, 溫度校正, 裁剪 ROI)
 |
 ├── models/                     # 機器學習模型相關模組
-│   ├── detector.py             # YOLO 物件偵測器
-│   ├── segmenter.py            # UNet 圖像分割器
+│   ├── detector.py             # YOLO 物件偵測器 (支援 TensorRT 推論)
+│   ├── segmenter.py            # UNet 圖像分割器 (支援 TensorRT 推論)
 │   ├── unet_model.py           # UNet 模型架構定義
 │   └── unet_parts.py           # UNet 模型組件定義
 |
@@ -74,6 +75,8 @@ respiration-monitor-app/
 |
 └── utils/                      # 通用工具模組
     ├── visualization.py        # 視覺化 (繪製框, 顯示文字, 管理窗口)
+    ├── profiler.py             # 效能探針 (Profiler, TimeIt)
+    ├── hardware_monitor.py     # 基於 jtop 的硬體監控器
     └── timing.py               # 時間/FPS 計算
 ```
 
@@ -122,6 +125,8 @@ respiration-monitor-app/
     torchvision
     ultralytics
     scipy
+    jetson-stats   # 用於硬體監控 (jtop)
+    pycuda         # TensorRT 推論所需 (若使用 .engine)
     ```
 
     執行安裝：
@@ -185,7 +190,24 @@ respiration-monitor-app/
       * 程式會運行 `config.py` 中 `DURATION` 所設定的時間，然後自動計算平均體溫和呼吸率並退出。
       * 在運行期間，按下鍵盤上的 `q` 鍵可提前結束程式。
 
-3.  **（可選）使用輔助工具:**
+3.  **效能基準測試 (Automated Benchmarking):**
+
+    若要在固定環境下測試效能，請在 `config.py` 中設置：
+    ```python
+    IS_TESTING = True
+    MOCK_THERMAL_PATH = "test_data/input_thermal.npy" # 預錄數據路徑
+    SHOW_ANALYSIS_UI = False # 關閉 UI 以獲得純粹效能數據
+    ```
+    然後執行 `python main_app.py`。系統會自動在結束時生成 `benchmark_result.json` 與 `hardware_stats.csv`。
+
+4.  **錄製測試數據:**
+
+    ```bash
+    python record_test_data.py
+    ```
+    此程式會擷取熱像儀的 16-bit 原始輻射數據並存成 `.npy` 檔案，保留完整的溫度精準度。
+
+5.  **（可選）使用輔助工具:**
 
       * **擷取臉部資料:**
         ```bash

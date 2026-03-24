@@ -13,5 +13,6 @@ services:
       - /tmp/.X11-unix:/tmp/.X11-unix
       - /tmp/argus_socket:/tmp/argus_socket
       - /dev:/dev              # 讓 Container 可以隨時抓到熱插拔的雙鏡頭
+      - /run/jtop.sock:/run/jtop.sock
     stdin_open: true           # 保持標準輸入開啟 (對應 -i)
     tty: true                  # 分配虛擬終端機 (對應 -t)

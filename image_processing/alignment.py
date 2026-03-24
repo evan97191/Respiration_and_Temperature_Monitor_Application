@@ -39,17 +39,6 @@ def calculate_perspective_matrix(points_vis=config.POINTS_VIS, points_ir=config.
     print("Perspective transform matrix calculated successfully.")
     return matrix
 
-def apply_perspective(frame, matrix, target_size=(config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT)):
-    """
-    Applies the perspective transformation matrix to align the frame.
-    Target size should match the dimensions of the target coordinate system (e.g., the IR frame size).
-    """
-    if frame is None or matrix is None:
-        print("Warning: Cannot apply perspective, frame or matrix is None.")
-        return None
-    # Note: target_size should be (width, height) for cv2.warpPerspective
-    aligned_frame = cv2.warpPerspective(frame, matrix, target_size)
-    return aligned_frame
 
 def transform_bbox(bbox, matrix):
     """

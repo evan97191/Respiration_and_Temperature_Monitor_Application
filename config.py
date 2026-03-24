@@ -1,11 +1,16 @@
 # config.py
 
 # -- Model Paths --
-YOLO_MODEL_PATH = "yolo11n_headmask.pt"
-UNET_MODEL_PATH = "unet_msfd_model_best.pth"
+YOLO_MODEL_PATH = "yolo11n_headmask.engine"
+UNET_MODEL_PATH = "unet_msfd.engine"
 
 # Excution time
 DURATION = 30 # second
+
+# -- Testing Framework Parameters --
+IS_TESTING = True
+TEST_VISIBLE_VIDEO = "test_data/visible_test.mp4"
+TEST_THERMAL_VIDEO = "test_data/thermal_test.npy"
 
 # Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False
@@ -40,18 +45,41 @@ POINTS_VIS = [[197, 122], [226, 520], [780, 510], [781, 107]]
 # POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
 # YOLO Detection Confidence Threshold
 YOLO_CONF_THRESHOLD = 0.5
-TRACKING_FREQUENCY = 3 # Run YOLO every N frames, use tracker otherwise
+# YOLO configuration
 
 # UNet Segmentation Threshold
 UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is common)
 # UNet Model Input Size (Height, Width) - MUST MATCH TRAINING
 UNET_INPUT_SIZE = (256, 256)
+# erode kernel size for Unet predicted mask
+KERNEL_SIZE = 11
 
 # -- Analysis Parameters --
-TEMPERATURE_QUEUE_MAX_SIZE = 10 * 9
-RESPIRATION_MIN_DATA_POINTS = 9 # Minimum points needed for FFT
+TEMPERATURE_QUEUE_MAX_SIZE = 15 * 9
+RESPIRATION_MIN_DATA_POINTS = 30 # Minimum points needed for FFT
 # Default FPS if calculation fails
 DEFAULT_FPS = 21 # Adjust based on expected performance
+# FFT zero-padding factor (improves spectral peak detection precision, 4 = 4x interpolation)
+FFT_ZERO_PAD_FACTOR = 4
+# FFT Minimum target_length (improves spectral peak detection precision)
+TARGET_FFT_LEN = 2048
+# Minimum samples needed before applying Butterworth bandpass filter
+BANDPASS_FILTER_MIN_SAMPLES = 30
+
+# -- Temperature Extraction Parameters --
+# Method to extract head temperature from ROI: 
+# 'percentile' (recommended, average of top 5% hottest pixels, robust to noise)
+# 'max' (legacy, absolute maximum single pixel, prone to hot-pixel noise)
+TEMP_EXTRACTION_METHOD = 'max'
+
+# -- Blackbody Calibration Parameters --
+# Set to True to enable real-time temperature offsetting based on a fixed blackbody source
+ENABLE_BLACKBODY_CALIBRATION = True
+# The preset actual temperature of the blackbody (°C)
+BLACKBODY_TEMP_C = 37.0
+# Fixed ROI for the blackbody in the *thermal* coordinate space (x, y, width, height)
+# You can use get_temp.py to find the exact coordinates of your blackbody in the thermal frame.
+BLACKBODY_ROI = (548, 457, 566, 476)
 
 # -- Visualization Parameters --
 # BBox Color (BGR)
@@ -72,8 +100,8 @@ RESP_FONT_SCALE = 3
 RESP_THICKNESS = 3
 
 # Respiration Analysis Range
-RESP_MIN_BPM = 1.0
-RESP_MAX_BPM = 100.0
+RESP_MIN_BPM = 6.0
+RESP_MAX_BPM = 30.0
 
 # Mask Overlay
 MASK_OVERLAY_COLOR = [255, 0, 0] # RGB
@@ -86,9 +114,16 @@ WINDOW_MASK_OVERLAY = 'MASK Overlay'
 WINDOW_MASK_SEGMENTED = 'MASK Segmented'
 WINDOW_THERMAL_MASK_SEGMENTED = 'THERMAL MASK Segmented'
 WINDOW_THERMAL_SKIN_MASK_SEGMENTED = 'THERMAL SKIN MASK Segmented'
+WINDOW_ANALYSIS = 'Analysis Graphs'
 
-SHOW_VISIBLE_CAMERA_UI = True # Toggle to turn off the visible camera popup
-SHOW_THERMAL_UI = True # Toggle to turn off the individual Thermal popup
+SHOW_VISIBLE_CAMERA_UI = False # Toggle to turn off the visible camera popup
+SHOW_THERMAL_UI = False # Toggle to turn off the individual Thermal popup
+SHOW_MASK_OVERLAY_UI = False # Toggle for MASK Overlay window
+SHOW_MASK_SEGMENTED_UI = False # Toggle for MASK Segmented window
+SHOW_THERMAL_MASK_SEGMENTED_UI = False # Toggle for THERMAL MASK Segmented window
+SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = False # Toggle for THERMAL SKIN MASK Segmented window
+SHOW_ANALYSIS_UI = True # Toggle for real-time Analysis Graphs
+
 # -- Device --
 # Auto-detect CUDA or use CPU
 import torch

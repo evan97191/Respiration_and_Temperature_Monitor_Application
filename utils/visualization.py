@@ -80,7 +80,7 @@ class DisplayManager:
     def show(self, window_name, frame):
         """ Shows a frame in the specified window. """
         if window_name not in self.windows:
-            print(f"Warning: Window '{window_name}' not managed.")
+            # Silently return if window is turned off in config
             return
         if frame is None:
             # Optional: Show a black screen or a "No Data" message
@@ -102,15 +102,3 @@ class DisplayManager:
         cv2.destroyAllWindows()
         self.windows = [] # Clear managed windows
         print("Display windows destroyed.")
-
-    def destroy_window(self, window_name):
-        """ Destroys a specific window. """
-        if window_name in self.windows:
-            try:
-                cv2.destroyWindow(window_name)
-                self.windows.remove(window_name)
-                print(f"Window '{window_name}' destroyed.")
-            except cv2.error as e:
-                print(f"Error destroying window '{window_name}': {e}")
-        else:
-             print(f"Warning: Cannot destroy window '{window_name}', it is not managed or already closed.")

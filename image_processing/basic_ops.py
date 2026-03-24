@@ -3,23 +3,20 @@
 import numpy as np
 import cv2
 
-def ktof(val):
-  """Converts Kelvin * 100 to Fahrenheit."""
-  return (1.8 * ktoc(val) + 32.0)
-
 def ktoc(val):
   """Converts Kelvin * 100 to Celsius using correction."""
+  if val is None:
+      return None
   return temp_correction(val) / 100.0
+
+# Pre-compute polynomial coefficients for temperature correction (fixed calibration data)
+_TEMP_CORR_TX = np.array([30760, 30850, 30950, 31040, 31120, 31260, 31360, 31420, 31520, 31570])
+_TEMP_CORR_TC = np.array([3200, 3300, 3400, 3500, 3600, 3800, 3900, 4000, 4100, 4200])
+_TEMP_CORR_POLY = np.poly1d(np.polyfit(_TEMP_CORR_TX, _TEMP_CORR_TC, 2))
 
 def temp_correction(temp):
     """ Applies polynomial temperature correction. """
-    # Coefficients derived from the original script's polyfit
-    # It's better to calculate this once and store coefficients if possible
-    Tx = np.array([30760, 30850, 30950, 31040, 31120, 31260, 31360, 31420, 31520, 31570])
-    Tc = np.array([3200, 3300, 3400, 3500, 3600, 3800, 3900, 4000, 4100, 4200])
-    z = np.polyfit(Tx, Tc, 2)
-    pp = np.poly1d(z)
-    return pp(temp)
+    return _TEMP_CORR_POLY(temp)
 
 def raw_to_8bit(data):
   """Converts raw 16-bit thermal data to an 8-bit BGR image."""
