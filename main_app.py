@@ -31,6 +31,10 @@ from models.segmenter import UNetSegmenter
 from analysis.temperature import calculate_average_pixel_value
 from analysis.respiration import update_temperature_queue, calculate_respiration_fft, calculate_fft_raw
 
+# Import Profiling and Testing Tools
+from utils.profiler import Profiler, TimeIt
+from utils.hardware_monitor import HardwareMonitor
+
 def main():
     print(f"Using device: {config.DEVICE}")
 
@@ -48,8 +52,15 @@ def main():
     display_manager = DisplayManager(active_windows, default_width=config.DISPLAY_WIDTH, default_height=config.DISPLAY_HEIGHT)
 
     try:
-        thermal_cam = ThermalCameraUVC(vid=config.THERMAL_VID, pid=config.THERMAL_PID)
-        visible_cam = VisibleCamera(pipeline=config.GST_PIPELINE)
+        if getattr(config, 'IS_TESTING', False):
+            print("--- RUNNING IN TESTING MODE (Mock Cameras) ---")
+            from camera_utils.mock_camera import MockCamera
+            thermal_cam = MockCamera(config.TEST_THERMAL_VIDEO, target_fps=9)
+            visible_cam = MockCamera(config.TEST_VISIBLE_VIDEO, target_fps=21)
+        else:
+            thermal_cam = ThermalCameraUVC(vid=config.THERMAL_VID, pid=config.THERMAL_PID)
+            visible_cam = VisibleCamera(pipeline=config.GST_PIPELINE)
+            
         detector = YoloDetector(model_path=config.YOLO_MODEL_PATH)
         segmenter = UNetSegmenter(model_path=config.UNET_MODEL_PATH, device=config.DEVICE)
     except Exception as e:
@@ -57,6 +68,10 @@ def main():
         return # Exit if essential components fail
 
     # --- Initial Setup ---
+    # Start Hardware Monitor
+    monitor = HardwareMonitor(output_csv="hardware_stats.csv")
+    monitor.start()
+    
     # Wrap cameras in threads for non-blocking reads
     thermal_thread = CameraThread(thermal_cam, name="ThermalThread")
     visible_thread = CameraThread(visible_cam, name="VisibleThread")
@@ -124,8 +139,9 @@ def main():
         # print(f"FPS: {current_avg_fps:.2f}") # Optional FPS print
 
         # 1. Get Frames from Threads
-        ret_therm, thermal_data, therm_time = thermal_thread.read() 
-        ret_vis, visible_frame, _ = visible_thread.read()
+        with TimeIt("Camera_Read"):
+            ret_therm, thermal_data, therm_time = thermal_thread.read() 
+            ret_vis, visible_frame, _ = visible_thread.read()
 
         if not ret_vis or visible_frame is None:
             print("Warning: Skipping loop iteration, failed to get visible frame.")
@@ -165,7 +181,9 @@ def main():
         # We will detect on the raw visible frame, and transform the BBox later
         
         # 3. Object Detection (YOLO) on visible frame
-        yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+        with TimeIt("YOLO_Inference"):
+            yolo_results = detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+            
         largest_box = detector.find_largest_box(yolo_results)
         
         # 4. Segmentation and Analysis (if box found)
@@ -186,19 +204,23 @@ def main():
             if yolo_head_roi is not None and yolo_head_roi.size > 0:
                 # --- UNet Segmentation ---
                 try:
-                    input_tensor = segmenter.preprocess(yolo_head_roi, target_size=config.UNET_INPUT_SIZE)
-                    pred_mask_np = segmenter.predict(input_tensor, threshold=config.UNET_CONF_THRESHOLD)
+                    with TimeIt("UNet_Preprocess"):
+                        input_tensor = segmenter.preprocess(yolo_head_roi, target_size=config.UNET_INPUT_SIZE)
+                    with TimeIt("UNet_Inference"):
+                        pred_mask_np = segmenter.predict(input_tensor, threshold=config.UNET_CONF_THRESHOLD)
+                    
                     if pred_mask_np is not None:
                         # Erode predicted mask
                         pred_mask_np = pred_mask_np.astype(np.uint8, copy=False)
                         cv2.erode(pred_mask_np, erode_kernel, dst=pred_mask_np, iterations=1)
 
                         # --- Visualization of Segmentation ---
-                        head_overlay_display = segmenter.overlay_mask(yolo_head_roi, pred_mask_np,
-                                                                      color=config.MASK_OVERLAY_COLOR,
-                                                                      alpha=config.MASK_OVERLAY_ALPHA)
-                        head_segmented_display = segmenter.extract_foreground(yolo_head_roi, pred_mask_np)
-                        mask_segmented_thermal_data = segmenter.extract_foreground(yolo_head_thermal_roi, pred_mask_np)
+                        with TimeIt("Mask_Visualization"):
+                            head_overlay_display = segmenter.overlay_mask(yolo_head_roi, pred_mask_np,
+                                                                          color=config.MASK_OVERLAY_COLOR,
+                                                                          alpha=config.MASK_OVERLAY_ALPHA)
+                            head_segmented_display = segmenter.extract_foreground(yolo_head_roi, pred_mask_np)
+                            mask_segmented_thermal_data = segmenter.extract_foreground(yolo_head_thermal_roi, pred_mask_np)
                     else:
                         print("Warning: UNet prediction mask was None.")
                         head_overlay_display = yolo_head_roi # Show original ROI if mask fails
@@ -214,14 +236,15 @@ def main():
                 # print("Warning: YOLO head ROI is empty or None.") # Can be noisy
                 pass # No head ROI, no segmentation display needed
 
-            avg_temp_no_unet = calculate_average_pixel_value(thermal_8bit, thermal_box)
-            
-            if mask_segmented_thermal_data is not None and np.any(mask_segmented_thermal_data != 0):
-                avg_temp = np.mean(mask_segmented_thermal_data, where=mask_segmented_thermal_data != 0)
-            else:
-                avg_temp = None
-            # print(avg_temp)
-            # print(f"no unet:{round(avg_temp_no_unet, 2)}, unet:{round(avg_temp, 2)}")
+            with TimeIt("Temperature_Processing"):
+                avg_temp_no_unet = calculate_average_pixel_value(thermal_8bit, thermal_box)
+                
+                if mask_segmented_thermal_data is not None and np.any(mask_segmented_thermal_data != 0):
+                    avg_temp = np.mean(mask_segmented_thermal_data, where=mask_segmented_thermal_data != 0)
+                else:
+                    avg_temp = None
+                # print(avg_temp)
+                # print(f"no unet:{round(avg_temp_no_unet, 2)}, unet:{round(avg_temp, 2)}")
 
             # avg_temp = calculate_average_pixel_value(yolo_head_roi, largest_box)
             
@@ -308,8 +331,9 @@ def main():
         valid_timestamps = list(timestamp_list)[:len(valid_temps)] # Match lengths exactly in case of misalignments
         
         if len(valid_temps) >= config.RESPIRATION_MIN_DATA_POINTS and len(valid_timestamps) == len(valid_temps):
-            breathing_rate_bpm, debug_data_interp = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
-            _, debug_data_raw = calculate_fft_raw(valid_temps, current_avg_fps)
+            with TimeIt("Signal_Processing_FFT"):
+                breathing_rate_bpm, debug_data_interp = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
+                _, debug_data_raw = calculate_fft_raw(valid_temps, current_avg_fps)
             if breathing_rate_bpm is not None:
                 breathing_rate_bpm_list.append(breathing_rate_bpm)
 
@@ -345,8 +369,9 @@ def main():
 
 
         # 7. Update Displays
-        display_manager.show(config.WINDOW_CAMERA, frame_to_show)
-        display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
+        with TimeIt("Display_Update"):
+            display_manager.show(config.WINDOW_CAMERA, frame_to_show)
+            display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
 
         
 
@@ -370,49 +395,50 @@ def main():
              display_manager.show(config.WINDOW_MASK_SEGMENTED, None) # Show black screen
 
         # --- Analysis Graphs Display ---
-        if getattr(config, 'SHOW_ANALYSIS_UI', True):
-            plots_canvas = np.zeros((config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH, 3), dtype=np.uint8)
-            h, w = config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH
-            half_h, half_w = h // 2, w // 2
-            
-            if debug_data_raw is not None and debug_data_interp is not None:
-                # Top Left: Raw Temperature
-                draw_graph_cv2(plots_canvas,
-                               data_x=None,
-                               data_y=debug_data_raw['raw_temp'],
-                               color=(0, 255, 255),
-                               rect=(0, 0, half_w, half_h),
-                               title="Raw Temp (temp_data_list)")
+        with TimeIt("Analysis_Graphs_Update"):
+            if getattr(config, 'SHOW_ANALYSIS_UI', True):
+                plots_canvas = np.zeros((config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH, 3), dtype=np.uint8)
+                h, w = config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH
+                half_h, half_w = h // 2, w // 2
                 
-                # Bottom Left: Raw FFT
-                draw_graph_cv2(plots_canvas,
-                               data_x=debug_data_raw['positive_freqs'] * 60, # x is BPM
-                               data_y=debug_data_raw['positive_magnitude'],
-                               color=(255, 100, 100),
-                               rect=(0, half_h, half_w, half_h),
-                               title="Raw FFT",
-                               y_min_fixed=0.0)
+                if debug_data_raw is not None and debug_data_interp is not None:
+                    # Top Left: Raw Temperature
+                    draw_graph_cv2(plots_canvas,
+                                   data_x=None,
+                                   data_y=debug_data_raw['raw_temp'],
+                                   color=(0, 255, 255),
+                                   rect=(0, 0, half_w, half_h),
+                                   title="Raw Temp (temp_data_list)")
+                    
+                    # Bottom Left: Raw FFT
+                    draw_graph_cv2(plots_canvas,
+                                   data_x=debug_data_raw['positive_freqs'] * 60, # x is BPM
+                                   data_y=debug_data_raw['positive_magnitude'],
+                                   color=(255, 100, 100),
+                                   rect=(0, half_h, half_w, half_h),
+                                   title="Raw FFT",
+                                   y_min_fixed=0.0)
 
-                # Top Right: Interpolated Temperature
-                draw_graph_cv2(plots_canvas,
-                               data_x=debug_data_interp['uniform_time'],
-                               data_y=debug_data_interp['resampled_temp'],
-                               color=(0, 255, 0),
-                               rect=(half_w, 0, half_w, half_h),
-                               title="Interp Temp (with Timestamps)")
-                
-                # Bottom Right: Interpolated FFT
-                draw_graph_cv2(plots_canvas,
-                               data_x=debug_data_interp['positive_freqs'] * 60, # x is BPM
-                               data_y=debug_data_interp['positive_magnitude'],
-                               color=(100, 255, 100),
-                               rect=(half_w, half_h, half_w, half_h),
-                               title="Interp FFT",
-                               y_min_fixed=0.0)
-            else:
-                 cv2.putText(plots_canvas, "Gathering data...", (50, half_h), config.LABEL_FONT, 1.0, (255, 255, 255), 1)
+                    # Top Right: Interpolated Temperature
+                    draw_graph_cv2(plots_canvas,
+                                   data_x=debug_data_interp['uniform_time'],
+                                   data_y=debug_data_interp['resampled_temp'],
+                                   color=(0, 255, 0),
+                                   rect=(half_w, 0, half_w, half_h),
+                                   title="Interp Temp (with Timestamps)")
+                    
+                    # Bottom Right: Interpolated FFT
+                    draw_graph_cv2(plots_canvas,
+                                   data_x=debug_data_interp['positive_freqs'] * 60, # x is BPM
+                                   data_y=debug_data_interp['positive_magnitude'],
+                                   color=(100, 255, 100),
+                                   rect=(half_w, half_h, half_w, half_h),
+                                   title="Interp FFT",
+                                   y_min_fixed=0.0)
+                else:
+                     cv2.putText(plots_canvas, "Gathering data...", (50, half_h), config.LABEL_FONT, 1.0, (255, 255, 255), 1)
 
-            display_manager.show(config.WINDOW_ANALYSIS, plots_canvas)
+                display_manager.show(config.WINDOW_ANALYSIS, plots_canvas)
         
 
         print(f"{round(time.time() - start_time, 2)}")  #執行時間
@@ -441,6 +467,11 @@ def main():
     thermal_thread.stop()
     visible_thread.stop()
     display_manager.destroy_windows()
+    
+    # 停止資源監控並匯出效能報告
+    monitor.stop()
+    Profiler().export_json("benchmark_result.json")
+    
     print("Application finished.")
 
     return temperature, resp

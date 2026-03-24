@@ -5,7 +5,12 @@ YOLO_MODEL_PATH = "yolo11n_headmask.engine"
 UNET_MODEL_PATH = "unet_msfd.engine"
 
 # Excution time
-DURATION = 200 # second
+DURATION = 30 # second
+
+# -- Testing Framework Parameters --
+IS_TESTING = True
+TEST_VISIBLE_VIDEO = "test_data/visible_test.mp4"
+TEST_THERMAL_VIDEO = "test_data/thermal_test.npy"
 
 # Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False
@@ -118,6 +123,7 @@ SHOW_MASK_SEGMENTED_UI = False # Toggle for MASK Segmented window
 SHOW_THERMAL_MASK_SEGMENTED_UI = False # Toggle for THERMAL MASK Segmented window
 SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = False # Toggle for THERMAL SKIN MASK Segmented window
 SHOW_ANALYSIS_UI = True # Toggle for real-time Analysis Graphs
+
 # -- Device --
 # Auto-detect CUDA or use CPU
 import torch

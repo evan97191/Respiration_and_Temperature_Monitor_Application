@@ -180,3 +180,8 @@ profile_app.py
 # Generated TensorRT and ONNX Models
 *.engine
 *.onnx
+
+# Testing Framework Artifacts & Data
+test_data/
+benchmark_result.json
+hardware_stats.csv
