@@ -116,6 +116,7 @@ def main():
     max_temp = None # Initialize max_temp outside loop
     breathing_rate_bpm_list = []
     start_time = time.time()
+    last_therm_time = 0.0
     while True:
 
         fps_tracker.tick()
@@ -123,7 +124,7 @@ def main():
         # print(f"FPS: {current_avg_fps:.2f}") # Optional FPS print
 
         # 1. Get Frames from Threads
-        ret_therm, thermal_data, _ = thermal_thread.read() 
+        ret_therm, thermal_data, therm_time = thermal_thread.read() 
         ret_vis, visible_frame, _ = visible_thread.read()
 
         if not ret_vis or visible_frame is None:

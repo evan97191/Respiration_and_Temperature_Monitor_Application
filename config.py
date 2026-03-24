@@ -1,11 +1,11 @@
 # config.py
 
 # -- Model Paths --
-YOLO_MODEL_PATH = "yolo11n_headmask.pt"
-UNET_MODEL_PATH = "unet_msfd_model_best.pth"
+YOLO_MODEL_PATH = "yolo11n_headmask.engine"
+UNET_MODEL_PATH = "unet_msfd.engine"
 
 # Excution time
-DURATION = 300 # second
+DURATION = 200 # second
 
 # Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False
@@ -111,11 +111,11 @@ WINDOW_THERMAL_MASK_SEGMENTED = 'THERMAL MASK Segmented'
 WINDOW_THERMAL_SKIN_MASK_SEGMENTED = 'THERMAL SKIN MASK Segmented'
 WINDOW_ANALYSIS = 'Analysis Graphs'
 
-SHOW_VISIBLE_CAMERA_UI = True # Toggle to turn off the visible camera popup
-SHOW_THERMAL_UI = True # Toggle to turn off the individual Thermal popup
-SHOW_MASK_OVERLAY_UI = True # Toggle for MASK Overlay window
+SHOW_VISIBLE_CAMERA_UI = False # Toggle to turn off the visible camera popup
+SHOW_THERMAL_UI = False # Toggle to turn off the individual Thermal popup
+SHOW_MASK_OVERLAY_UI = False # Toggle for MASK Overlay window
 SHOW_MASK_SEGMENTED_UI = False # Toggle for MASK Segmented window
-SHOW_THERMAL_MASK_SEGMENTED_UI = True # Toggle for THERMAL MASK Segmented window
+SHOW_THERMAL_MASK_SEGMENTED_UI = False # Toggle for THERMAL MASK Segmented window
 SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = False # Toggle for THERMAL SKIN MASK Segmented window
 SHOW_ANALYSIS_UI = True # Toggle for real-time Analysis Graphs
 # -- Device --

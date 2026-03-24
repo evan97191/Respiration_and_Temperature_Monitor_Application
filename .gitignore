@@ -176,3 +176,7 @@ cython_debug/
 # Profiling and Analysis Files
 profile_app.py
 *_profile.txt
+
+# Generated TensorRT and ONNX Models
+*.engine
+*.onnx
