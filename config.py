@@ -1,16 +1,29 @@
-# config.py
+import os
+
+def get_env_bool(name, default):
+    val = os.environ.get(name)
+    if val is None:
+        return default
+    return val.lower() in ('true', '1', 'yes')
+
+def get_env_int(name, default):
+    return int(os.environ.get(name, default))
 
 # -- Model Paths --
-YOLO_MODEL_PATH = "yolo11n_headmask.engine"
-UNET_MODEL_PATH = "unet_msfd.engine"
+YOLO_MODEL_PATH = os.environ.get("YOLO_MODEL_PATH", "yolo11n_headmask.engine")
+UNET_MODEL_PATH = os.environ.get("UNET_MODEL_PATH", "unet_msfd.engine")
 
-# Excution time
-DURATION = 30 # second
+# Execution time
+DURATION = get_env_int("DURATION", 30) # second
 
 # -- Testing Framework Parameters --
-IS_TESTING = True
+IS_TESTING = get_env_bool("IS_TESTING", True)
 TEST_VISIBLE_VIDEO = "test_data/visible_test.mp4"
 TEST_THERMAL_VIDEO = "test_data/thermal_test.npy"
+
+# ... (rest of the file remains similar but I will only show the changed parts)
+# Note: To avoid huge file replacement, I'll use multi_replace for specific lines if needed, 
+# but I'll try to keep it concise.
 
 # Filter out skin color (Optional feature)
 SKIN_COLOR_FILTER = False
@@ -116,15 +129,18 @@ WINDOW_THERMAL_MASK_SEGMENTED = 'THERMAL MASK Segmented'
 WINDOW_THERMAL_SKIN_MASK_SEGMENTED = 'THERMAL SKIN MASK Segmented'
 WINDOW_ANALYSIS = 'Analysis Graphs'
 
-SHOW_VISIBLE_CAMERA_UI = False # Toggle to turn off the visible camera popup
-SHOW_THERMAL_UI = False # Toggle to turn off the individual Thermal popup
-SHOW_MASK_OVERLAY_UI = False # Toggle for MASK Overlay window
-SHOW_MASK_SEGMENTED_UI = False # Toggle for MASK Segmented window
-SHOW_THERMAL_MASK_SEGMENTED_UI = False # Toggle for THERMAL MASK Segmented window
-SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = False # Toggle for THERMAL SKIN MASK Segmented window
-SHOW_ANALYSIS_UI = True # Toggle for real-time Analysis Graphs
+SHOW_VISIBLE_CAMERA_UI = get_env_bool("SHOW_VISIBLE_CAMERA_UI", False)
+SHOW_THERMAL_UI = get_env_bool("SHOW_THERMAL_UI", False)
+SHOW_MASK_OVERLAY_UI = get_env_bool("SHOW_MASK_OVERLAY_UI", False)
+SHOW_MASK_SEGMENTED_UI = get_env_bool("SHOW_MASK_SEGMENTED_UI", False)
+SHOW_THERMAL_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_MASK_SEGMENTED_UI", False)
+SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI", False)
+SHOW_ANALYSIS_UI = get_env_bool("SHOW_ANALYSIS_UI", False)
 
 # -- Device --
 # Auto-detect CUDA or use CPU
-import torch
-DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+try:
+    import torch
+    DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+except ImportError:
+    DEVICE = "cpu"
