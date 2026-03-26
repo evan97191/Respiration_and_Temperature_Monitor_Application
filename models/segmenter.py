@@ -33,7 +33,13 @@ class UNetSegmenter:
         self.model = UNet(n_channels=n_channels, n_classes=n_classes, bilinear=bilinear)
 
         try:
-            state_dict = torch.load(model_path, map_location=self.device)
+            # Use weights_only=True for security (Bandit B614) if supported (Torch >= 2.1)
+            try:
+                state_dict = torch.load(model_path, map_location=self.device, weights_only=True)
+            except TypeError:
+                # Fallback for older torch versions
+                state_dict = torch.load(model_path, map_location=self.device)
+            
             # Handle potential 'module.' prefix if saved with DataParallel
             if list(state_dict.keys())[0].startswith('module.'):
                 state_dict = {k[len("module."):]: v for k, v in state_dict.items()}
