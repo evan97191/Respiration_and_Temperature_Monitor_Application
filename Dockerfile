@@ -73,4 +73,4 @@ USER $USERNAME
 # Copy application code (will be handled by volumes in docker-compose for dev, but good for production)
 # COPY . /workspace
 
-CMD ["python3", "main_app.py"]
+# CMD ["python3", "main_app.py"]

@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 import cv2
 import time
 import numpy as np
@@ -13,11 +16,11 @@ class MockCamera:
             self.total_frames = len(self.frames)
             self.frame_idx = 0
             if self.total_frames == 0:
-                print(f"[MockCamera] Warning: .npy file {media_path} is empty.")
+                logger.warning(f"[MockCamera] Warning: .npy file {media_path} is empty.")
         else:
             self.cap = cv2.VideoCapture(media_path)
             if not self.cap.isOpened():
-                print(f"[MockCamera] Warning: Failed to open video file {media_path}")
+                logger.warning(f"[MockCamera] Warning: Failed to open video file {media_path}")
                 
         self.target_fps = target_fps
         self.loop = loop

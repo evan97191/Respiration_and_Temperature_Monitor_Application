@@ -1,3 +1,6 @@
+import logging
+logger = logging.getLogger(__name__)
+
 import cv2
 import threading
 import time
@@ -25,7 +28,7 @@ class CameraThread:
              try:
                  self.camera.start_streaming()
              except Exception as e:
-                 print(f"[{self.name}] Failed to start stream: {e}")
+                 logger.info(f"[{self.name}] Failed to start stream: {e}")
 
         while not self.stopped:
             # Get the frame from the underlying camera object
@@ -67,5 +70,5 @@ class CameraThread:
         
         # Only attempt to release if the object has a release method
         if hasattr(self.camera, 'release'):
-            print(f"[{self.name}] Releasing underlying camera...")
+            logger.info(f"[{self.name}] Releasing underlying camera...")
             self.camera.release()

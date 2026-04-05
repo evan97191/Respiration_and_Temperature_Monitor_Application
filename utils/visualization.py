@@ -3,6 +3,11 @@
 import cv2
 import config # For colors, fonts etc.
 import numpy as np
+import logging
+from utils.plot import draw_graph_cv2
+
+logger = logging.getLogger(__name__)
+
 
 def draw_bounding_box(image, box, color=config.BBOX_COLOR, thickness=config.BBOX_THICKNESS):
     """ Draws the largest bounding box and its label on the image. """
@@ -14,7 +19,7 @@ def draw_bounding_box(image, box, color=config.BBOX_COLOR, thickness=config.BBOX
         conf = box.get("confidence", 0.0) # Use get for safety
         cls_id = box.get("class_id", -1)
     except (KeyError, TypeError, ValueError):
-         print("Warning: Invalid box format for drawing.")
+         logger.warning("Invalid box format for drawing.")
          return image
 
     # Draw rectangle
@@ -71,11 +76,11 @@ class DisplayManager:
         self.windows = window_names
         self.width = default_width
         self.height = default_height
-        print("Initializing display windows...")
+        logger.info("Initializing display windows...")
         for name in self.windows:
             cv2.namedWindow(name, cv2.WINDOW_NORMAL)
             cv2.resizeWindow(name, self.width + 1, self.height + 1) # +1 as in original code
-        print("Display windows initialized.")
+        logger.info("Display windows initialized.")
 
     def show(self, window_name, frame):
         """ Shows a frame in the specified window. """
@@ -88,17 +93,119 @@ class DisplayManager:
             cv2.putText(black_screen, "No Data", (50, self.height // 2),
                         config.LABEL_FONT, 1.0, (255, 255, 255), 1)
             cv2.imshow(window_name, black_screen)
-            # print(f"Warning: Frame for window '{window_name}' is None.")
+            # logger.warning(f"Frame for window '{window_name}' is None.")
             return
         try:
              cv2.imshow(window_name, frame)
         except cv2.error as e:
-             print(f"Error showing frame in window '{window_name}': {e}")
+             logger.error(f"Error showing frame in window '{window_name}': {e}")
 
 
     def destroy_windows(self):
         """ Destroys all managed OpenCV windows. """
-        print("Destroying display windows...")
+        logger.info("Destroying display windows...")
         cv2.destroyAllWindows()
         self.windows = [] # Clear managed windows
-        print("Display windows destroyed.")
+        logger.info("Display windows destroyed.")
+
+
+class Renderer:
+    """ Handles all drawing and rendering operations, decoupling logic from visualization. """
+    def __init__(self, display_manager):
+        self.display_manager = display_manager
+
+    def render_visible_frame(self, visible_frame, largest_box, breathing_rate_bpm):
+        if not getattr(config, 'SHOW_VISIBLE_CAMERA_UI', True):
+            return
+            
+        frame_to_show = visible_frame.copy()
+        if largest_box:
+             frame_to_show = draw_bounding_box(frame_to_show, largest_box, color=config.BBOX_COLOR)
+        if breathing_rate_bpm is not None:
+             frame_to_show = display_value(frame_to_show, breathing_rate_bpm, value_type="Respiration", is_thermal=False)
+             
+        self.display_manager.show(config.WINDOW_CAMERA, frame_to_show)
+
+    def render_thermal_frame(self, thermal_8bit, largest_box, thermal_box, max_temp, temperature_offset_c):
+        if not getattr(config, 'SHOW_THERMAL_UI', True):
+            return
+            
+        thermal_frame_display = thermal_8bit.copy() if thermal_8bit is not None else None
+        if thermal_frame_display is None:
+            thermal_frame_display = np.zeros((config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH, 3), dtype=np.uint8)
+            cv2.putText(thermal_frame_display, "Thermal Error", (50, config.DISPLAY_HEIGHT // 2),
+                        config.LABEL_FONT, 1.0, (0, 0, 255), 1)
+        else:
+            if getattr(config, 'ENABLE_BLACKBODY_CALIBRATION', False):
+                x1, y1, x2, y2 = config.BLACKBODY_ROI
+                scale_x = thermal_frame_display.shape[1] / 640.0
+                scale_y = thermal_frame_display.shape[0] / 480.0
+                bx, by = int(x1 * scale_x), int(y1 * scale_y)
+                bw, bh = int((x2 - x1) * scale_x), int((y2 - y1) * scale_y)
+
+                cv2.rectangle(thermal_frame_display, (bx, by), (bx + bw, by + bh), (255, 0, 0), 2)
+                cv2.putText(thermal_frame_display, f"BB: {temperature_offset_c:+.2f}C", (bx, max(15, by - 5)), config.LABEL_FONT, 0.4, (255, 0, 0), 1)
+
+            if largest_box:
+                 thermal_frame_display = draw_bounding_box(thermal_frame_display, thermal_box, color=config.BBOX_COLOR)
+            if max_temp is not None:
+                 thermal_frame_display = display_value(thermal_frame_display, max_temp, value_type="Temperature", is_thermal=True)
+
+        self.display_manager.show(config.WINDOW_THERMAL, thermal_frame_display)
+
+    def render_analysis_ui(self, debug_data_raw, debug_data_interp):
+        if not getattr(config, 'SHOW_ANALYSIS_UI', True):
+            return
+            
+        plots_canvas = np.zeros((config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH, 3), dtype=np.uint8)
+        h, w = config.DISPLAY_HEIGHT, config.DISPLAY_WIDTH
+        half_h, half_w = h // 2, w // 2
+        
+        if debug_data_raw is not None and debug_data_interp is not None:
+            # Top Left: Raw Temperature
+            draw_graph_cv2(plots_canvas,
+                           data_x=None,
+                           data_y=debug_data_raw['raw_temp'],
+                           color=(0, 255, 255),
+                           rect=(0, 0, half_w, half_h),
+                           title="Raw Temp (temp_data_list)")
+            
+            # Bottom Left: Raw FFT
+            draw_graph_cv2(plots_canvas,
+                           data_x=debug_data_raw['positive_freqs'] * 60, # x is BPM
+                           data_y=debug_data_raw['positive_magnitude'],
+                           color=(255, 100, 100),
+                           rect=(0, half_h, half_w, half_h),
+                           title="Raw FFT",
+                           y_min_fixed=0.0)
+
+            # Top Right: Interpolated Temperature
+            draw_graph_cv2(plots_canvas,
+                           data_x=debug_data_interp['uniform_time'],
+                           data_y=debug_data_interp['resampled_temp'],
+                           color=(0, 255, 0),
+                           rect=(half_w, 0, half_w, half_h),
+                           title="Interp Temp (with Timestamps)")
+            
+            # Bottom Right: Interpolated FFT
+            draw_graph_cv2(plots_canvas,
+                           data_x=debug_data_interp['positive_freqs'] * 60, # x is BPM
+                           data_y=debug_data_interp['positive_magnitude'],
+                           color=(100, 255, 100),
+                           rect=(half_w, half_h, half_w, half_h),
+                           title="Interp FFT",
+                           y_min_fixed=0.0)
+        else:
+             cv2.putText(plots_canvas, "Gathering data...", (50, half_h), config.LABEL_FONT, 1.0, (255, 255, 255), 1)
+
+        self.display_manager.show(config.WINDOW_ANALYSIS, plots_canvas)
+
+    def render_masks(self, head_overlay_display, head_segmented_display, mask_segmented_thermal_data):
+        if getattr(config, 'SHOW_MASK_OVERLAY_UI', True):
+            self.display_manager.show(config.WINDOW_MASK_OVERLAY, head_overlay_display)
+            
+        if getattr(config, 'SHOW_MASK_SEGMENTED_UI', True):
+            self.display_manager.show(config.WINDOW_MASK_SEGMENTED, head_segmented_display)
+            
+        if getattr(config, 'SHOW_THERMAL_MASK_SEGMENTED_UI', True):
+            self.display_manager.show(config.WINDOW_THERMAL_MASK_SEGMENTED, mask_segmented_thermal_data)
