@@ -58,7 +58,11 @@ POINTS_VIS = [[197, 122], [226, 520], [780, 510], [781, 107]]
 # POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
 # YOLO Detection Confidence Threshold
 YOLO_CONF_THRESHOLD = 0.5
-# YOLO configuration
+# -- Optimization Parameters --
+# Number of frames to skip YOLO detection if a face was found in the previous frame
+DETECTION_SKIP_INTERVAL = get_env_int("DETECTION_SKIP_INTERVAL", 5)
+# Number of frames to skip Respiration FFT calculation (updates every X frames)
+FFT_SKIP_INTERVAL = get_env_int("FFT_SKIP_INTERVAL", 5)
 
 # UNet Segmentation Threshold
 UNET_CONF_THRESHOLD = 0.5 # As per original code, adjust if needed (0.5 is common)
@@ -129,13 +133,13 @@ WINDOW_THERMAL_MASK_SEGMENTED = 'THERMAL MASK Segmented'
 WINDOW_THERMAL_SKIN_MASK_SEGMENTED = 'THERMAL SKIN MASK Segmented'
 WINDOW_ANALYSIS = 'Analysis Graphs'
 
-SHOW_VISIBLE_CAMERA_UI = get_env_bool("SHOW_VISIBLE_CAMERA_UI", True)
-SHOW_THERMAL_UI = get_env_bool("SHOW_THERMAL_UI", True)
-SHOW_MASK_OVERLAY_UI = get_env_bool("SHOW_MASK_OVERLAY_UI", True)
-SHOW_MASK_SEGMENTED_UI = get_env_bool("SHOW_MASK_SEGMENTED_UI", True)
-SHOW_THERMAL_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_MASK_SEGMENTED_UI", True)
-SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI", True)
-SHOW_ANALYSIS_UI = get_env_bool("SHOW_ANALYSIS_UI", True)
+SHOW_VISIBLE_CAMERA_UI = get_env_bool("SHOW_VISIBLE_CAMERA_UI", False)
+SHOW_THERMAL_UI = get_env_bool("SHOW_THERMAL_UI", False)
+SHOW_MASK_OVERLAY_UI = get_env_bool("SHOW_MASK_OVERLAY_UI", False)
+SHOW_MASK_SEGMENTED_UI = get_env_bool("SHOW_MASK_SEGMENTED_UI", False)
+SHOW_THERMAL_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_MASK_SEGMENTED_UI", False)
+SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI", False)
+SHOW_ANALYSIS_UI = get_env_bool("SHOW_ANALYSIS_UI", False)
 
 # -- Device --
 # Auto-detect CUDA or use CPU

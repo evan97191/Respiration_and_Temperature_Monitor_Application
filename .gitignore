@@ -183,5 +183,5 @@ profile_app.py
 
 # Testing Framework Artifacts & Data
 test_data/
-benchmark_result.json
+*.json
 hardware_stats.csv

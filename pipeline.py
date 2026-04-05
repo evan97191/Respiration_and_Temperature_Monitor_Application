@@ -97,6 +97,11 @@ class MonitorPipeline:
             raise RuntimeError(f"Alignment failed: {e}")
 
         self.erode_kernel = np.ones((config.KERNEL_SIZE, config.KERNEL_SIZE), np.uint8)
+        
+        # Optimization counters
+        self.detection_skip_count = 0
+        self.last_face_box = None
+        self.fft_skip_count = 0
 
     def process_frame(self, visible_frame, thermal_data, therm_time, current_avg_fps):
         thermal_8bit = raw_to_8bit(thermal_data)
@@ -120,11 +125,21 @@ class MonitorPipeline:
                     temperature_offset_c = config.BLACKBODY_TEMP_C - bb_temp_c
                     temperature_offset_raw = temperature_offset_c * 100.0
 
-        with TimeIt("YOLO_Inference"):
-            yolo_results = self.detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+        yolo_results = None
+        # Optimization: Skip YOLO detection if we already have a box and haven't reached the interval
+        if self.last_face_box is None or self.detection_skip_count == 0:
+            with TimeIt("YOLO_Inference"):
+                yolo_results = self.detector.predict(visible_frame, conf_threshold=config.YOLO_CONF_THRESHOLD)
+            largest_box = self.detector.find_largest_box(yolo_results)
+            self.last_face_box = largest_box
+        else:
+            # Reuse the last known box
+            largest_box = self.last_face_box
+
+        # Increment skip counter
+        if config.DETECTION_SKIP_INTERVAL > 0:
+            self.detection_skip_count = (self.detection_skip_count + 1) % (config.DETECTION_SKIP_INTERVAL + 1)
             
-        largest_box = self.detector.find_largest_box(yolo_results)
-        
         head_overlay_display = None
         head_segmented_display = None
         mask_segmented_thermal_data = None
@@ -150,20 +165,29 @@ class MonitorPipeline:
                         cv2.erode(pred_mask_np, self.erode_kernel, dst=pred_mask_np, iterations=1)
 
                         with TimeIt("Mask_Visualization"):
-                            head_overlay_display = self.segmenter.overlay_mask(yolo_head_roi, pred_mask_np,
-                                                                          color=config.MASK_OVERLAY_COLOR,
-                                                                          alpha=config.MASK_OVERLAY_ALPHA)
-                            head_segmented_display = self.segmenter.extract_foreground(yolo_head_roi, pred_mask_np)
+                            # Only perform these if UI is enabled to save CPU
+                            if getattr(config, 'SHOW_MASK_OVERLAY_UI', False):
+                                head_overlay_display = self.segmenter.overlay_mask(yolo_head_roi, pred_mask_np,
+                                                                              color=config.MASK_OVERLAY_COLOR,
+                                                                              alpha=config.MASK_OVERLAY_ALPHA)
+                            
+                            if getattr(config, 'SHOW_MASK_SEGMENTED_UI', False):
+                                head_segmented_display = self.segmenter.extract_foreground(yolo_head_roi, pred_mask_np)
+
+                            # Always extract thermal mask if UNET is used for temperature? 
+                            # Or only if the window is showing. 
+                            # Actually mask_segmented_thermal_data is used below for temperature if available.
                             mask_segmented_thermal_data = self.segmenter.extract_foreground(yolo_head_thermal_roi, pred_mask_np)
                     else:
                         logger.warning("UNet prediction mask was None.")
-                        head_overlay_display = yolo_head_roi
-                        head_segmented_display = np.zeros_like(yolo_head_roi)
-                        mask_segmented_thermal_data = np.zeros_like(yolo_head_thermal_roi)
+                        if getattr(config, 'SHOW_MASK_OVERLAY_UI', False):
+                            head_overlay_display = yolo_head_roi
+                        head_segmented_display = np.zeros_like(yolo_head_roi) if yolo_head_roi is not None else None
+                        mask_segmented_thermal_data = np.zeros_like(yolo_head_thermal_roi) if yolo_head_thermal_roi is not None else None
 
                 except Exception as e:
                     logger.error(f"Error during segmentation processing: {e}")
-                    head_overlay_display = yolo_head_roi
+                    head_overlay_display = yolo_head_roi if getattr(config, 'SHOW_MASK_OVERLAY_UI', False) else None
                     head_segmented_display = np.zeros_like(yolo_head_roi) if yolo_head_roi is not None else None
                     mask_segmented_thermal_data = np.zeros_like(yolo_head_thermal_roi) if yolo_head_thermal_roi is not None else None
 
@@ -244,12 +268,21 @@ class MonitorPipeline:
         valid_temps, valid_timestamps = self.session_context.get_respiration_data()
         
         if len(valid_temps) >= config.RESPIRATION_MIN_DATA_POINTS and len(valid_timestamps) == len(valid_temps):
-            with TimeIt("Signal_Processing_FFT"):
-                breathing_rate_bpm, debug_data_interp = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
-                _, debug_data_raw = calculate_fft_raw(valid_temps, current_avg_fps)
+            # Optimization: Run FFT only at specified interval
+            if self.fft_skip_count == 0:
+                with TimeIt("Signal_Processing_FFT"):
+                    breathing_rate_bpm, debug_data_interp = calculate_respiration_fft(valid_temps, valid_timestamps, current_avg_fps)
+                    _, debug_data_raw = calculate_fft_raw(valid_temps, current_avg_fps)
+
+            # Keep the count going
+            if config.FFT_SKIP_INTERVAL > 0:
+                self.fft_skip_count = (self.fft_skip_count + 1) % (config.FFT_SKIP_INTERVAL + 1)
 
         if breathing_rate_bpm is not None:
             self.session_context.update(None, None, None, breathing_rate_bpm, None)
+        else:
+             # If skipped, try to get the last known BPM from context to maintain display
+             _, breathing_rate_bpm = self.session_context.get_summary()
 
         if getattr(config, 'SHOW_ANALYSIS_UI', True):
             self.renderer.render_analysis_ui(debug_data_raw, debug_data_interp)
