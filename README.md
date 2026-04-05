@@ -115,6 +115,15 @@ respiration-monitor-app/
         brew install libuvc
         ```
 
+5.  **USB 設備權限設定 (USB Device Permissions):**
+    在 Linux 主機（包含 Jetson）上，預設情況下一般使用者無法直接存取 UVC 熱像儀的原始數據流。若在運行時遇到 `uvc_open error: -3` (Access Denied)，請在 **Host 主機端** 執行我們提供的設定腳本：
+
+    ```bash
+    chmod +x scripts/setup_udev.sh
+    ./scripts/setup_udev.sh
+    ```
+    **設定完成後，請務必重新插拔熱像儀。** 這樣無論是直接執行還是透過 Docker 執行，程式都能獲得正確的存取權限。
+
 4.  **安裝 Python 依賴:**
     專案中的 `crop_face.py` 和 `models/detector.py` 都使用了 `ultralytics` 函式庫，`main_app.py` 和 `models/segmenter.py` 使用了 `torch`。根據程式碼中的 `import` 語句，建議的 `requirements.txt` 如下：
 
