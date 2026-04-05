@@ -25,10 +25,12 @@ class Profiler:
 
         summary = {}
         for name, durations in self.metrics.items():
+             avg_ms = (sum(durations)/len(durations)) * 1000
              summary[name] = {
-                 "avg_ms": round((sum(durations)/len(durations)) * 1000, 3),
+                 "avg_ms": round(avg_ms, 3),
                  "min_ms": round(min(durations) * 1000, 3),
                  "max_ms": round(max(durations) * 1000, 3),
+                 "avg_fps": round(1000.0 / avg_ms, 2) if avg_ms > 0 else 0.0,
                  "calls": len(durations)
              }
         

@@ -263,26 +263,28 @@ class MonitorPipeline:
         logger.info("Pipeline started.")
         
         while True:
-            self.fps_tracker.tick()
-            current_avg_fps = self.fps_tracker.get_average_fps(default_fps=self.visible_cam.get_default_fps())
+            with TimeIt("WholeSystem"):
+                self.fps_tracker.tick()
+                current_avg_fps = self.fps_tracker.get_average_fps(default_fps=self.visible_cam.get_default_fps())
 
-            with TimeIt("Camera_Read"):
-                ret_therm, thermal_data, therm_time = self.thermal_thread.read() 
-                ret_vis, visible_frame, _ = self.visible_thread.read()
+                with TimeIt("Camera_Read"):
+                    ret_therm, thermal_data, therm_time = self.thermal_thread.read() 
+                    ret_vis, visible_frame, _ = self.visible_thread.read()
 
-            if not ret_vis or visible_frame is None:
-                logger.warning("Skipping loop iteration, failed to get visible frame.")
-                time.sleep(0.01)
-                continue
-            if not ret_therm or thermal_data is None:
-                logger.warning("Skipping loop iteration, failed to get thermal frame.")
-                time.sleep(0.01)
-                continue
+                if not ret_vis or visible_frame is None:
+                    logger.warning("Skipping loop iteration, failed to get visible frame.")
+                    time.sleep(0.01)
+                    continue
+                if not ret_therm or thermal_data is None:
+                    logger.warning("Skipping loop iteration, failed to get thermal frame.")
+                    time.sleep(0.01)
+                    continue
 
-            self.process_frame(visible_frame, thermal_data, therm_time, current_avg_fps)
+                self.process_frame(visible_frame, thermal_data, therm_time, current_avg_fps)
 
+            # --- Loop Control & Diagnostics ---
             elapsed_time = time.time() - start_time
-            # print(f"{round(elapsed_time, 2)}")
+            # logger.info(f"Elapsed: {round(elapsed_time, 2)}")
 
             if elapsed_time > getattr(config, 'DURATION', float('inf')):
                 break
