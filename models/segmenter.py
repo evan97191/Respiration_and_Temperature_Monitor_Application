@@ -4,6 +4,9 @@ import torch
 import torch.nn.functional as F
 import numpy as np
 import cv2
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Assumes unet_model.py and unet_parts.py are in the same directory
 try:
@@ -13,7 +16,7 @@ except ImportError:
     try:
         from models.unet_model import UNet
     except ImportError:
-        print("ERROR: Cannot import UNet model. Make sure unet_model.py/unet_parts.py are in the models directory.")
+        logger.error("Cannot import UNet model. Make sure unet_model.py/unet_parts.py are in the models directory.")
         import sys
         sys.exit(1)
 
@@ -22,7 +25,7 @@ class UNetSegmenter:
     """Handles UNet image segmentation (PyTorch or TensorRT)."""
 
     def __init__(self, model_path, device, n_channels=3, n_classes=1, bilinear=True):
-        print(f"Loading UNet model from: {model_path}")
+        logger.info(f"Loading UNet model from: {model_path}")
         self.device = device
         self.is_trt = str(model_path).endswith('.engine') or str(model_path).endswith('.trt')
         
@@ -49,20 +52,20 @@ class UNetSegmenter:
             # Removed self.model.half() as per user request to maintain stability for export
             
             self.model.eval() # Set to evaluation mode
-            print("UNet model loaded successfully (PyTorch FP32).")
+            logger.info("UNet model loaded successfully (PyTorch FP32).")
         except FileNotFoundError:
-            print(f"Error: UNet model file not found at {model_path}")
+            logger.error(f"UNet model file not found at {model_path}")
             raise
         except Exception as e:
-            print(f"Error loading UNet state dict: {e}")
+            logger.error(f"Error loading UNet state dict: {e}")
             raise
 
     def _init_trt(self, model_path):
         import tensorrt as trt
-        print("Initializing TensorRT engine for UNet...")
-        self.logger = trt.Logger(trt.Logger.WARNING)
-        trt.init_libnvinfer_plugins(self.logger, namespace="")
-        with open(model_path, "rb") as f, trt.Runtime(self.logger) as runtime:
+        logger.info("Initializing TensorRT engine for UNet...")
+        self.trt_logger = trt.Logger(trt.Logger.WARNING)
+        trt.init_libnvinfer_plugins(self.trt_logger, namespace="")
+        with open(model_path, "rb") as f, trt.Runtime(self.trt_logger) as runtime:
             self.engine = runtime.deserialize_cuda_engine(f.read())
         self.context = self.engine.create_execution_context()
         
@@ -90,7 +93,7 @@ class UNetSegmenter:
             else:
                 self.outputs.append(tensor)
                 
-        print("TensorRT UNet engine loaded successfully.")
+        logger.info("TensorRT UNet engine loaded successfully.")
 
     def preprocess(self, img_bgr, target_size=(256, 256)):
         """Preprocesses BGR image (NumPy) for inference."""
@@ -141,26 +144,26 @@ class UNetSegmenter:
 
             return pred_mask.squeeze().cpu().numpy()
         except Exception as e:
-            print(f"Error during UNet prediction: {e}")
+            logger.error(f"Error during UNet prediction: {e}")
             return None
 
     @staticmethod
     def overlay_mask(image_np, mask_np, color=[255, 0, 0], alpha=0.5):
         """Applies a mask overlay onto an image (NumPy inputs)."""
         if image_np is None or mask_np is None:
-            print("Warning: Cannot overlay mask, image or mask is None.")
+            logger.warning("Cannot overlay mask, image or mask is None.")
             return image_np # Return original image if overlay fails
 
         # Resize mask to match image if necessary
         if image_np.shape[:2] != mask_np.shape:
-            #print(f"Warning: Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for overlay.")
+            #logger.warning(f"Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for overlay.")
             try:
                 mask_np_resized = cv2.resize(mask_np.astype(np.uint8),
                                            (image_np.shape[1], image_np.shape[0]),
                                            interpolation=cv2.INTER_NEAREST)
                 mask_np = mask_np_resized
             except Exception as e:
-                 print(f"Error resizing mask for overlay: {e}. Cannot apply overlay.")
+                 logger.error(f"Error resizing mask for overlay: {e}. Cannot apply overlay.")
                  return image_np # Return original if resize fails
 
         overlay = image_np.copy()
@@ -176,7 +179,7 @@ class UNetSegmenter:
             overlay[foreground] = cv2.addWeighted(image_np[foreground], 1 - alpha,
                                                   np.full_like(image_np[foreground], color_np), alpha, 0)
         except Exception as e:
-            print(f"Error applying addWeighted for overlay: {e}")
+            logger.error(f"Error applying addWeighted for overlay: {e}")
             # Fallback: Just color the foreground pixels (less visually appealing)
             # overlay[foreground] = color_np
             return image_np # Return original on error
@@ -187,19 +190,19 @@ class UNetSegmenter:
     def extract_foreground(image_np, mask_np):
         """Extracts the foreground based on the mask (background becomes black)."""
         if image_np is None or mask_np is None:
-            print("Warning: Cannot extract foreground, image or mask is None.")
+            logger.warning("Cannot extract foreground, image or mask is None.")
             return image_np
 
         # Resize mask to match image if necessary
         if image_np.shape[:2] != mask_np.shape:
-            #print(f"Warning: Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for extraction.")
+            #logger.warning(f"Resizing mask ({mask_np.shape}) to match image ({image_np.shape[:2]}) for extraction.")
             try:
                 mask_np_resized = cv2.resize(mask_np.astype(np.uint16),
                                            (image_np.shape[1], image_np.shape[0]),
                                            interpolation=cv2.INTER_NEAREST)
                 mask_np = mask_np_resized
             except Exception as e:
-                 print(f"Error resizing mask for extraction: {e}. Cannot extract.")
+                 logger.error(f"Error resizing mask for extraction: {e}. Cannot extract.")
                  return image_np
 
         # Create black background
@@ -208,10 +211,10 @@ class UNetSegmenter:
         try:
             segmented_img[foreground] = image_np[foreground]
         except IndexError as e:
-             print(f"Error during foreground extraction (likely mask/image mismatch): {e}")
+             logger.error(f"Error during foreground extraction (likely mask/image mismatch): {e}")
              return image_np # Return original on error
         except Exception as e:
-             print(f"Unexpected error during foreground extraction: {e}")
+             logger.error(f"Unexpected error during foreground extraction: {e}")
              return image_np
 
         return segmented_img

@@ -2,6 +2,9 @@ import threading
 import time
 import csv
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 try:
     from jtop import jtop
@@ -20,7 +23,7 @@ class HardwareMonitor:
         if HAS_JTOP:
             self.jetson = jtop()
         else:
-            print("[Warning] jtop is not installed or accessible. Hardware Monitor will be disabled.")
+            logger.warning("jtop is not installed or accessible. Hardware Monitor will be disabled.")
 
     def start(self):
         if not HAS_JTOP or not self.jetson:
@@ -33,7 +36,7 @@ class HardwareMonitor:
             self.thread.daemon = True
             self.thread.start()
         except Exception as e:
-            print(f"[Warning] Failed to start jtop. Ensure container has access to Jetson stats socket: {e}")
+            logger.warning(f"Failed to start jtop. Ensure container has access to Jetson stats socket: {e}")
             self.is_running = False
 
     def _monitor_loop(self):
@@ -57,7 +60,7 @@ class HardwareMonitor:
                         pass # Ignore minor stat sync issues
                     time.sleep(self.interval)
         except Exception as e:
-            print(f"[Warning] Hardware monitor loop stopped unexpectedly: {e}")
+            logger.warning(f"Hardware monitor loop stopped unexpectedly: {e}")
 
     def stop(self):
         self.is_running = False
@@ -68,4 +71,4 @@ class HardwareMonitor:
             self.jetson.close()
             
         if HAS_JTOP and os.path.exists(self.output_csv):
-            print(f"硬體資源紀錄已匯出至 {self.output_csv}")
+            logger.info(f"硬體資源紀錄已匯出至 {self.output_csv}")

@@ -1,6 +1,9 @@
 import time
 from collections import defaultdict
 import json
+import logging
+
+logger = logging.getLogger(__name__)
 
 class Profiler:
     """單例模式，儲存全域的效能數據，供各個子模組寫入延遲"""
@@ -17,7 +20,7 @@ class Profiler:
         
     def export_json(self, filepath="benchmark_result.json"):
         if not self.metrics:
-            print("No profiling data collected.")
+            logger.info("No profiling data collected.")
             return
 
         summary = {}
@@ -31,7 +34,7 @@ class Profiler:
         
         with open(filepath, 'w') as f:
             json.dump(summary, f, indent=4)
-        print(f"效能報告已匯出至 {filepath}")
+        logger.info(f"效能報告已匯出至 {filepath}")
 
 # Decorator 用法
 def profile_time(name):

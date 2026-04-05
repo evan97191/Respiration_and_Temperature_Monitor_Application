@@ -3,6 +3,9 @@
 import cv2
 import numpy as np
 import config # For points
+import logging
+
+logger = logging.getLogger(__name__)
 
 # Note: select_points UI logic is commented out as per original code
 # If manual selection is needed again, uncomment and potentially refactor
@@ -18,7 +21,7 @@ def calculate_perspective_matrix(points_vis=config.POINTS_VIS, points_ir=config.
     Calculates the perspective transform matrix from visible to IR coordinates.
     Uses points defined in config.py by default.
     """
-    print("Calculating perspective transform matrix...")
+    logger.info("Calculating perspective transform matrix...")
     if len(points_vis) < 4 or len(points_ir) < 4:
         raise ValueError("At least 4 corresponding points are required for perspective transform.")
     if len(points_vis) != len(points_ir):
@@ -36,7 +39,7 @@ def calculate_perspective_matrix(points_vis=config.POINTS_VIS, points_ir=config.
     if matrix is None:
          raise RuntimeError("Failed to compute perspective transform matrix.")
 
-    print("Perspective transform matrix calculated successfully.")
+    logger.info("Perspective transform matrix calculated successfully.")
     return matrix
 
 

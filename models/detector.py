@@ -1,29 +1,32 @@
 # models/detector.py
 
+import logging
 from ultralytics import YOLO
+
+logger = logging.getLogger(__name__)
 
 class YoloDetector:
     """Handles YOLO object detection."""
 
     def __init__(self, model_path):
-        print(f"Loading YOLO model from: {model_path}")
+        logger.info(f"Loading YOLO model from: {model_path}")
         try:
             self.model = YOLO(model_path)
-            print("YOLO model loaded successfully.")
+            logger.info("YOLO model loaded successfully.")
         except Exception as e:
-            print(f"Error loading YOLO model: {e}")
+            logger.error(f"Error loading YOLO model: {e}")
             raise
 
     def predict(self, frame, conf_threshold=0.5, verbose=False):
         """Performs object detection on a frame."""
         if frame is None:
-            print("Warning: Cannot run YOLO prediction, frame is None.")
+            logger.warning("Cannot run YOLO prediction, frame is None.")
             return []
         try:
             results = self.model(frame, conf=conf_threshold, verbose=verbose)
             return results
         except Exception as e:
-            print(f"Error during YOLO prediction: {e}")
+            logger.error(f"Error during YOLO prediction: {e}")
             return [] # Return empty list on error
 
     @staticmethod
@@ -61,7 +64,7 @@ class YoloDetector:
                             "class_id": int(box.cls[0].item()) if box.cls is not None and box.cls.numel() > 0 else -1
                         }
         except Exception as e:
-            print(f"Error processing YOLO results: {e}")
+            logger.error(f"Error processing YOLO results: {e}")
             return None # Return None if processing fails
 
         return largest_box

@@ -2,6 +2,9 @@
 
 import numpy as np
 import cv2
+import logging
+
+logger = logging.getLogger(__name__)
 
 def ktoc(val):
   """Converts Kelvin * 100 to Celsius using correction."""
@@ -39,7 +42,7 @@ def cut_roi(image, box):
     try:
         x1, y1, x2, y2 = int(box["x1"]), int(box["y1"]), int(box["x2"]), int(box["y2"])
     except (KeyError, TypeError):
-        print("Error: Invalid box format for cutting ROI.")
+        logger.error("Invalid box format for cutting ROI.")
         return None
 
     # Ensure coordinates are within image bounds

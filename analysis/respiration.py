@@ -2,11 +2,14 @@
 
 import numpy as np
 import config # 引入 config 來獲取參數
+import logging
 
 from collections import deque
 from scipy.interpolate import interp1d
 from scipy.signal import butter, sosfiltfilt
 import scipy.fftpack
+
+logger = logging.getLogger(__name__)
 
 def update_temperature_queue(new_temp, data_list, max_size: int):
     """ Adds a new temperature value to a deque, maintaining max size. """
@@ -92,7 +95,7 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
         if len(detrend_temp_array) >= min_filter_samples:
              detrend_temp_array = butter_bandpass_filter(detrend_temp_array, min_hz, max_hz, uniform_fps, order=2)
     except Exception as e:
-        print(f"Warning: Bandpass filter failed (likely too few samples), skipping filter: {e}")
+        logger.warning(f"Bandpass filter failed (likely too few samples), skipping filter: {e}")
 
     N = len(detrend_temp_array)
 
@@ -154,7 +157,7 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
         return breathing_rate_bpm, debug_data
 
     except Exception as e:
-        print(f"Error during FFT calculation: {e}")
+        logger.error(f"Error during FFT calculation: {e}")
         return None, None
 
 
@@ -211,5 +214,6 @@ def calculate_fft_raw(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_bpm=confi
         return breathing_rate_bpm, debug_data
 
     except Exception as e:
-        print(f"Error during raw FFT calculation: {e}")
+        logger.error(f"Error during raw FFT calculation: {e}")
         return None, None
+urn None, None

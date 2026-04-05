@@ -1,39 +1,40 @@
 # analysis/temperature.py
 
 import numpy as np
+import logging
+
+logger = logging.getLogger(__name__)
 
 def calculate_average_pixel_value(image, box):
-    """ Calculates the average pixel value within a bounding box in an image. """
+    """
+    Calculates the average pixel value within a bounding box.
+    """
     if image is None or box is None:
-        # print("Warning: Cannot calculate avg temp, image or box is None.")
+        # logger.warning("Cannot calculate avg temp, image or box is None.")
         return None
 
-    # Use basic_ops.cut_roi if refactored there, or keep logic here
-    # For simplicity, keeping logic here but using the roi cutting concept:
     try:
         x1, y1, x2, y2 = int(box["x1"]), int(box["y1"]), int(box["x2"]), int(box["y2"])
-    except (KeyError, TypeError):
-        print("Error: Invalid box format for avg temp calculation.")
+    except (KeyError, TypeError, ValueError):
+        logger.error("Invalid box format for avg temp calculation.")
         return None
 
     h, w = image.shape[:2]
-    x1, x2 = max(0, x1), min(w, x2)
-    y1, y2 = max(0, y1), min(h, y2)
+    x1, y1 = max(0, x1), max(0, y1)
+    x2, y2 = min(w, x2), min(h, y2)
 
-    if x1 >= x2 or y1 >= y2:
-        # print("Warning: Invalid ROI for avg temp calculation.")
+    if x2 <= x1 or y2 <= y1:
+        # logger.warning("Invalid ROI for avg temp calculation.")
         return None
 
     roi = image[y1:y2, x1:x2]
     if roi.size == 0:
-        # print("Warning: ROI size is zero for avg temp calculation.")
+        # logger.warning("ROI size is zero for avg temp calculation.")
         return None
 
     try:
-        # Works for grayscale (thermal) or calculates mean across all channels if color
-        avg_pixel_value = np.mean(roi)
-        return avg_pixel_value
+        avg_value = np.mean(roi)
+        return float(avg_value)
     except Exception as e:
-        print(f"Error calculating average pixel value: {e}")
+        logger.error(f"Error calculating average pixel value: {e}")
         return None
-
