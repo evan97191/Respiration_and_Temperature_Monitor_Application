@@ -216,4 +216,3 @@ def calculate_fft_raw(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_bpm=confi
     except Exception as e:
         logger.error(f"Error during raw FFT calculation: {e}")
         return None, None
-urn None, None
