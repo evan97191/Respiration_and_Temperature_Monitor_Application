@@ -59,7 +59,7 @@ class MonitorPipeline:
                 from camera_utils.mock_camera import MockCamera
 
                 self.thermal_cam = MockCamera(config.TEST_THERMAL_VIDEO, target_fps=9)
-                self.visible_cam = MockCamera(config.TEST_VISIBLE_VIDEO, target_fps=21)
+                self.visible_cam = MockCamera(config.TEST_VISIBLE_VIDEO, target_fps=config.DEFAULT_FPS)
             else:
                 self.thermal_cam = ThermalCameraUVC(vid=config.THERMAL_VID, pid=config.THERMAL_PID)
                 self.visible_cam = VisibleCamera(pipeline=config.GST_PIPELINE)

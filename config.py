@@ -32,6 +32,9 @@ TEST_THERMAL_VIDEO = "test_data/thermal_test.npy"
 SKIN_COLOR_FILTER = False
 
 # -- Camera Parameters --
+# Default FPS if calculation fails or for camera configuration
+DEFAULT_FPS = 60  # Adjust based on expected performance
+
 # UVC Thermal Camera VID/PID (from uvctypes.py, maybe keep there or centralize here)
 THERMAL_VID = 0x1E4E
 THERMAL_PID = 0x0100
@@ -39,8 +42,8 @@ THERMAL_BUFFER_SIZE = 2
 
 # Visible Camera GStreamer Pipeline
 GST_PIPELINE = (
-    "nvarguscamerasrc sensor_mode=0 ! "
-    "video/x-raw(memory:NVMM), width=3280, height=2464, framerate=21/1, format=NV12 ! "
+    "nvarguscamerasrc sensor_mode=4 ! "
+    f"video/x-raw(memory:NVMM), width=1280, height=720, framerate={DEFAULT_FPS}/1, format=NV12 ! "
     "nvvidconv flip-method=0 ! "
     "video/x-raw, width=960, height=616 ! "
     "nvvidconv ! "
@@ -77,8 +80,6 @@ KERNEL_SIZE = 11
 # -- Analysis Parameters --
 TEMPERATURE_QUEUE_MAX_SIZE = 15 * 9
 RESPIRATION_MIN_DATA_POINTS = 30  # Minimum points needed for FFT
-# Default FPS if calculation fails
-DEFAULT_FPS = 21  # Adjust based on expected performance
 # FFT zero-padding factor (improves spectral peak detection precision, 4 = 4x interpolation)
 FFT_ZERO_PAD_FACTOR = 4
 # FFT Minimum target_length (improves spectral peak detection precision)

@@ -100,16 +100,7 @@ if __name__ == "__main__":
     CALIB_IR_HEIGHT = 600  # 紅外光影像高度
 
     # --- 初始化攝影機 (使用與主程式相同的 GStreamer pipeline) ---
-    gst_pipeline = (
-        "nvarguscamerasrc sensor_mode=0 ! "
-        "video/x-raw(memory:NVMM), width=3820, height=2464, framerate=21/1, format=NV12 ! "
-        "nvvidconv flip-method=0 ! "
-        f"video/x-raw, width={CALIB_VIS_WIDTH}, height={CALIB_VIS_HEIGHT} ! "
-        "nvvidconv ! "
-        "video/x-raw, format=BGRx ! videoconvert ! "
-        "video/x-raw, format=BGR ! appsink drop=true sync=false"
-    )
-    cap = cv2.VideoCapture(gst_pipeline, cv2.CAP_GSTREAMER)
+    cap = cv2.VideoCapture(config.GST_PIPELINE, cv2.CAP_GSTREAMER)
     if not cap.isOpened():
         print("錯誤: 無法開啟可見光攝影機。請檢查 GStreamer pipeline。")
         exit()

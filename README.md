@@ -20,7 +20,7 @@
       * 透過 GStreamer pipeline 從可見光攝影機（如 CSI 攝影機）高效讀取影像流。
   * **影像對齊與處理**:
       * 透過預先校準的特徵點，計算透視變換矩陣，以精確對齊可見光與熱影像畫面。
-      * 提供獨立的 `calibrate_v3.py` 程式，讓使用者能以圖形化介面手動選點，自動產生並更新校準參數。
+      * 提供獨立的 `calibrate.py` 程式，讓使用者能以圖形化介面手動選點，自動產生並更新校準參數。
   * **AI 驅動的偵測與分割**:
       * 使用 YOLOv11n 模型即時偵測畫面中最大的人臉/頭部區域，作為分析目標。
       * 使用 UNet 模型對偵測到的頭部 ROI (Region of Interest) 進行口罩分割，並能以多種方式（如遮罩疊加、前景提取）視覺化結果。
@@ -48,7 +48,7 @@ respiration-monitor-app/
 |
 ├── *.pth / *.pt                # 各式 YOLO 與 UNet 模型權重檔
 |
-├── calibrate_v3.py             # 獨立程式：用於相機畫面校準
+├── calibrate.py             # 獨立程式：用於相機畫面校準
 ├── record_test_data.py         # 獨立程式：用於錄製 16-bit 原始輻射數據供基準測試使用
 ├── crop_face.py                # 獨立程式：用於自動裁剪並儲存臉部圖片
 ├── get_temp.py                 # 獨立程式：用於手動 ROI 溫度量測
@@ -155,7 +155,7 @@ respiration-monitor-app/
 所有重要的配置參數都集中在 `config.py` 檔案中。在運行前，務必檢查並修改：
 
   * **`POINTS_IR` & `POINTS_VIS`**: **極其重要**。這兩組點定義了熱影像與可見光影像之間的對應關係，直接影響畫面是否對齊。
-      * **首次使用時，強烈建議執行 `python calibrate_v3.py`**。此程式會引導您在兩個即時視窗中手動點擊對應的特徵點，然後自動將校準好的點寫入 `config.py`。
+      * **首次使用時，強烈建議執行 `python calibrate.py`**。此程式會引導您在兩個即時視窗中手動點擊對應的特徵點，然後自動將校準好的點寫入 `config.py`。
   * **模型與路徑**:
       * `YOLO_MODEL_PATH`, `UNET_MODEL_PATH`: 確認模型檔案路徑正確。
   * **相機設定**:
@@ -184,7 +184,7 @@ respiration-monitor-app/
 1.  **（首次）校準相機:**
 
     ```bash
-    python calibrate_v3.py
+    python calibrate.py
     ```
 
     按照提示在兩個視窗中分別點擊 4 個對應的點。完成後，`config.py` 中的 `POINTS_IR` 和 `POINTS_VIS` 將會自動更新。
@@ -231,7 +231,7 @@ respiration-monitor-app/
 
 ## 注意事項 (Notes)
 
-  * **對齊精度**: 影像對齊的準確性完全依賴於 `config.py` 中校準點的精度。如果對齊效果不佳，請務必重新運行 `calibrate_v3.py`。
+  * **對齊精度**: 影像對齊的準確性完全依賴於 `config.py` 中校準點的精度。如果對齊效果不佳，請務必重新運行 `calibrate.py`。
   * **呼吸率計算穩定性**: 呼吸率的計算基於溫度變化的 FFT 分析，其穩定性會受到多種因素影響，例如偵測框是否穩定、頭部是否遠離畫面、實際呼吸模式的規律性等。
   * **效能**: 在嵌入式裝置（如 Jetson Nano）上同時運行 YOLO 和 UNet 對計算資源要求較高，可能會導致 FPS (每秒幀數) 下降。
 
