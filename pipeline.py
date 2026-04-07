@@ -313,6 +313,10 @@ class MonitorPipeline:
                     time.sleep(0.01)
                     continue
 
+                with TimeIt("Thermal_Resize"):
+                    # Resize thermal data in processing pipeline instead of read thread to offload ingest bottleneck
+                    thermal_data = cv2.resize(thermal_data, (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT), interpolation=cv2.INTER_NEAREST)
+                
                 self.process_frame(visible_frame, thermal_data, therm_time, current_avg_fps)
 
             # --- Loop Control & Diagnostics ---

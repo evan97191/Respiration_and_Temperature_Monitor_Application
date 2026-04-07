@@ -22,16 +22,22 @@ class VisibleCamera:
         if self.default_fps <= 0 or np.isnan(self.default_fps):
              self.default_fps = config.DEFAULT_FPS # Fallback
         logger.info(f"Camera default FPS reported: {self.default_fps} (using {config.DEFAULT_FPS} as fallback if needed)")
+        self.error_count = 0
 
 
     def get_frame(self):
         """Reads a frame from the camera."""
         ret, frame = self.cap.read()
         if not ret:
-            logger.warning("Failed to capture frame from visible camera.")
+            self.error_count += 1
+            if self.error_count > 5:
+                logger.error(f"Visible camera failed {self.error_count} times in a row.")
+            else:
+                logger.warning(f"Failed to capture frame from visible camera. (Attempt {self.error_count})")
             return False, None
             
-        # frame = cv2.resize(frame, (960,616))
+        self.error_count = 0
+            
         return True, frame
 
     def get_default_fps(self):

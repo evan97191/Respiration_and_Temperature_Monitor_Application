@@ -52,7 +52,7 @@ class CameraThread:
                     
             # Small sleep to prevent 100% CPU usage on thread, 
             # while still reading faster than any camera FPS (e.g., 200Hz loop)
-            # time.sleep(0.005) 
+            time.sleep(0.005) 
 
     def read(self):
         # Return the most recently read frame
@@ -66,7 +66,9 @@ class CameraThread:
         # Indicate that the thread should be stopped
         self.stopped = True
         if self.thread.is_alive():
-            self.thread.join()
+            self.thread.join(timeout=2.0)
+            if self.thread.is_alive():
+                logger.warning(f"[{self.name}] Thread join timed out after 2 seconds.")
         
         # Only attempt to release if the object has a release method
         if hasattr(self.camera, 'release'):

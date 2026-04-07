@@ -183,5 +183,8 @@ profile_app.py
 
 # Testing Framework Artifacts & Data
 test_data/
-*.json
+benchmark_result*.json
 hardware_stats.csv
+
+# TODO file
+*TODO.md

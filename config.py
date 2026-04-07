@@ -17,7 +17,7 @@ UNET_MODEL_PATH = os.environ.get("UNET_MODEL_PATH", "unet_msfd.engine")
 DURATION = get_env_int("DURATION", 30) # second
 
 # -- Testing Framework Parameters --
-IS_TESTING = get_env_bool("IS_TESTING", True)
+IS_TESTING = get_env_bool("IS_TESTING", False)
 TEST_VISIBLE_VIDEO = "test_data/visible_test.mp4"
 TEST_THERMAL_VIDEO = "test_data/thermal_test.npy"
 
@@ -37,7 +37,7 @@ THERMAL_BUFFER_SIZE = 2
 # Visible Camera GStreamer Pipeline
 GST_PIPELINE = (
     "nvarguscamerasrc sensor_mode=0 ! "
-    "video/x-raw(memory:NVMM), width=3820, height=2464, framerate=21/1, format=NV12 ! "
+    "video/x-raw(memory:NVMM), width=3280, height=2464, framerate=21/1, format=NV12 ! "
     "nvvidconv flip-method=0 ! "
     "video/x-raw, width=960, height=616 ! "
     "nvvidconv ! "

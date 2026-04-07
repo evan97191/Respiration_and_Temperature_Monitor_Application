@@ -1,4 +1,6 @@
 # camera_utils/thermal_camera.py
+import logging
+logger = logging.getLogger(__name__)
 
 import time
 # from queue import Queue # Remove this line if only using the try/except below
@@ -34,13 +36,10 @@ except ImportError:
 
 
 # --- Frame Callback ---
-# Needs access to the queue, make it global or pass via userptr
-frame_queue = Queue(config.THERMAL_BUFFER_SIZE)
-
 def py_frame_callback(frame, userptr):
     """Internal callback function to put frames into the queue."""
-    global frame_queue
     try:
+        frame_queue = cast(userptr, py_object).value
         array_pointer = cast(frame.contents.data, POINTER(c_uint16 * (frame.contents.width * frame.contents.height)))
         data = np.copy(np.frombuffer(
             array_pointer.contents, dtype=np.dtype(np.uint16)
@@ -54,8 +53,6 @@ def py_frame_callback(frame, userptr):
 
         if not frame_queue.full():
             frame_queue.put(data)
-        # else:
-        #    logger.warning(f"Warning: Thermal frame queue is full. Frame dropped.") # Optional warning
     except Exception as e:
         logger.error(f"Error in thermal frame callback: {e}")
 
@@ -72,6 +69,8 @@ class ThermalCameraUVC:
         self.is_streaming = False
         self.vid = vid
         self.pid = pid
+
+        self.frame_queue = Queue(config.THERMAL_BUFFER_SIZE)
 
         logger.info("Initializing UVC context...")
         res = libuvc.uvc_init(byref(self.ctx), 0)
@@ -121,8 +120,8 @@ class ThermalCameraUVC:
             raise RuntimeError("Could not get stream control format size")
 
         # Clear the queue initially
-        while not frame_queue.empty():
-            frame_queue.get()
+        while not self.frame_queue.empty():
+            self.frame_queue.get()
 
         logger.info("Thermal camera initialized.")
 
@@ -132,7 +131,8 @@ class ThermalCameraUVC:
             logger.info("Streaming is already active.")
             return
         logger.info("Starting UVC stream...")
-        res = libuvc.uvc_start_streaming(self.devh, byref(self.ctrl), PTR_PY_FRAME_CALLBACK, None, 0)
+        self._userptr_q = py_object(self.frame_queue)
+        res = libuvc.uvc_start_streaming(self.devh, byref(self.ctrl), PTR_PY_FRAME_CALLBACK, self._userptr_q, 0)
         if res < 0:
             logger.error(f"uvc_start_streaming error {res}")
             self.release()
@@ -153,10 +153,8 @@ class ThermalCameraUVC:
     def get_frame(self, timeout=0.5):
         """Gets a frame from the queue."""
         try:
-            data = frame_queue.get(True, timeout) # Wait with timeout
-            data_resized = cv2.resize(data, (config.DISPLAY_WIDTH, config.DISPLAY_HEIGHT),
-                                      interpolation=cv2.INTER_NEAREST) # Nearest for temp data
-            return data_resized
+            data = self.frame_queue.get(True, timeout) # Wait with timeout
+            return data
         except Empty: # <<< --- Catch the imported 'Empty' exception directly ---
             # logger.warning(f"Warning: Thermal frame queue timed out.") # Can be noisy
             return None
