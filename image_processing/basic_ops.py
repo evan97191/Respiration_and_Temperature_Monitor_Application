@@ -1,37 +1,43 @@
 # image_processing/basic_ops.py
 
-import numpy as np
-import cv2
 import logging
+
+import cv2
+import numpy as np
 
 logger = logging.getLogger(__name__)
 
+
 def ktoc(val):
-  """Converts Kelvin * 100 to Celsius using correction."""
-  if val is None:
-      return None
-  return temp_correction(val) / 100.0
+    """Converts Kelvin * 100 to Celsius using correction."""
+    if val is None:
+        return None
+    return temp_correction(val) / 100.0
+
 
 # Pre-compute polynomial coefficients for temperature correction (fixed calibration data)
 _TEMP_CORR_TX = np.array([30760, 30850, 30950, 31040, 31120, 31260, 31360, 31420, 31520, 31570])
 _TEMP_CORR_TC = np.array([3200, 3300, 3400, 3500, 3600, 3800, 3900, 4000, 4100, 4200])
 _TEMP_CORR_POLY = np.poly1d(np.polyfit(_TEMP_CORR_TX, _TEMP_CORR_TC, 2))
 
+
 def temp_correction(temp):
-    """ Applies polynomial temperature correction. """
+    """Applies polynomial temperature correction."""
     return _TEMP_CORR_POLY(temp)
 
+
 def raw_to_8bit(data):
-  """Converts raw 16-bit thermal data to an 8-bit BGR image."""
-  if data is None:
-      return None
-  # Create a copy to avoid modifying the original thermal data
-  data_copy = data.copy()
-  cv2.normalize(data_copy, data_copy, 0, 65535, cv2.NORM_MINMAX)
-  np.right_shift(data_copy, 8, data_copy)
-  # Convert the normalized 8-bit grayscale to BGR
-  img_bgr = cv2.cvtColor(np.uint8(data_copy), cv2.COLOR_GRAY2BGR)
-  return img_bgr
+    """Converts raw 16-bit thermal data to an 8-bit BGR image."""
+    if data is None:
+        return None
+    # Create a copy to avoid modifying the original thermal data
+    data_copy = data.copy()
+    cv2.normalize(data_copy, data_copy, 0, 65535, cv2.NORM_MINMAX)
+    np.right_shift(data_copy, 8, data_copy)
+    # Convert the normalized 8-bit grayscale to BGR
+    img_bgr = cv2.cvtColor(np.uint8(data_copy), cv2.COLOR_GRAY2BGR)
+    return img_bgr
+
 
 def cut_roi(image, box):
     """Cuts a Region of Interest (ROI) from an image based on a bounding box."""
@@ -55,7 +61,7 @@ def cut_roi(image, box):
     # Check if the resulting ROI is valid (has non-zero width and height)
     if x1 >= x2 or y1 >= y2:
         # print(f"Warning: Invalid ROI coordinates after clipping: [{y1}:{y2}, {x1}:{x2}]")
-        return None # Return None for empty ROI
+        return None  # Return None for empty ROI
 
     # Extract the ROI
     roi = image[y1:y2, x1:x2]
@@ -66,26 +72,29 @@ def cut_roi(image, box):
 
     return roi
 
+
 def create_skin_mask(bgr_image):
     """Create a mask of skin."""
     # Convert an image from BGR to YCrCb color space
     ycrcb_image = cv2.cvtColor(bgr_image, cv2.COLOR_BGR2YCR_CB)
-    
+
     # Separate Y, Cr, Cb channels
     Y, Cr, Cb = cv2.split(ycrcb_image)
 
     # Define skin color conditions
     # That is, we want to find all pixels that *meet* the skin condition
     skin_in_condition = (
-        (Y > 80) &                # Luminance Conditions
-        (Cr > 135) & (Cr < 180) & # Red Chroma Range
-        (Cb > 85) & (Cb < 135)    # Blue Chroma Range
+        (Y > 80)  # Luminance Conditions
+        & (Cr > 135)
+        & (Cr < 180)  # Red Chroma Range
+        & (Cb > 85)
+        & (Cb < 135)  # Blue Chroma Range
     )
 
     # Create a completely black mask
     mask = np.zeros(bgr_image.shape[:2], dtype="uint8")
-    
+
     # Set the pixel locations that meet the skin criteria to white (255)
     mask[skin_in_condition] = 255
-    
+
     return mask

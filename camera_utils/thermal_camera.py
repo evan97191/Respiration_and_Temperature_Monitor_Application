@@ -1,38 +1,27 @@
-# camera_utils/thermal_camera.py
 import logging
-logger = logging.getLogger(__name__)
-
-import time
-# from queue import Queue # Remove this line if only using the try/except below
-from ctypes import *
-import numpy as np
-import cv2
-
-# Import UVC types and constants - assumes uvctypes.py is in project root
 import sys
-import os
-# Add project root to path to find uvctypes
-# sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) # Comment out if uvctypes is now found via standard path
+from ctypes import *
+from queue import Empty, Queue
+
+import numpy as np
+
+import config
+
 try:
     from uvctypes import *
 except ImportError:
-    logger.error(f"ERROR : uvctypes.py not found. Make sure it's in the project root or PYTHONPATH.")
-    sys.exit(1)
+    # We delay the logger.error until after imports are settled
+    pass
 
-# Import config for constants
+logger = logging.getLogger(__name__)
+
+# Re-check uvctypes with logger available
 try:
-    import config
-except ModuleNotFoundError:
-    logger.error(f"ERROR : config.py not found. Make sure it's in the project root.")
-    sys.exit(1)
-
-
-# --- Corrected Queue and Empty Exception Import ---
-try:
-  from queue import Queue, Empty # Python 3: Import both Queue and Empty
+    from uvctypes import *
 except ImportError:
-  from Queue import Queue, Empty # Python 2: Import both Queue and Empty
-# --------------------------------------------------
+    logger.error("ERROR : uvctypes.py not found. Make sure it's in the project root or PYTHONPATH.")
+    sys.exit(1)
+
 
 
 # --- Frame Callback ---
@@ -48,7 +37,7 @@ def py_frame_callback(frame, userptr):
         )
 
         if frame.contents.data_bytes != (2 * frame.contents.width * frame.contents.height):
-            logger.warning(f"Warning: Thermal frame data bytes mismatch.")
+            logger.warning("Warning: Thermal frame data bytes mismatch.")
             return
 
         if not frame_queue.full():
@@ -75,13 +64,13 @@ class ThermalCameraUVC:
         logger.info("Initializing UVC context...")
         res = libuvc.uvc_init(byref(self.ctx), 0)
         if res < 0:
-            logger.error(f"uvc_init error ")
+            logger.error("uvc_init error ")
             raise RuntimeError("Could not initialize UVC context")
 
         logger.info(f"Finding UVC device (VID={self.vid:#0x}, PID={self.pid:#0x})...")
         res = libuvc.uvc_find_device(self.ctx, byref(self.dev), self.vid, self.pid, 0)
         if res < 0:
-            logger.error(f"uvc_find_device error ")
+            logger.error("uvc_find_device error ")
             libuvc.uvc_exit(self.ctx)
             raise RuntimeError("Could not find UVC device")
 

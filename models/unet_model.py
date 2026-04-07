@@ -1,12 +1,12 @@
-import torch
 import torch.nn as nn
-import torch.nn.functional as F
 
 # Use absolute import from local module
-from models.unet_parts import DoubleConv, Down, Up, OutConv
+from models.unet_parts import DoubleConv, Down, OutConv, Up
+
 
 class UNet(nn.Module):
     """Full assembly of the parts to form the complete UNet network."""
+
     def __init__(self, n_channels, n_classes, bilinear=True):
         super(UNet, self).__init__()
         self.n_channels = n_channels

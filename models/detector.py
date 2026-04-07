@@ -1,9 +1,11 @@
 # models/detector.py
 
 import logging
+
 from ultralytics import YOLO
 
 logger = logging.getLogger(__name__)
+
 
 class YoloDetector:
     """Handles YOLO object detection."""
@@ -27,7 +29,7 @@ class YoloDetector:
             return results
         except Exception as e:
             logger.error(f"Error during YOLO prediction: {e}")
-            return [] # Return empty list on error
+            return []  # Return empty list on error
 
     @staticmethod
     def find_largest_box(results):
@@ -41,13 +43,13 @@ class YoloDetector:
         try:
             # Assuming results is a list (Ultralytics format)
             for r in results:
-                if not hasattr(r, 'boxes') or r.boxes is None:
+                if not hasattr(r, "boxes") or r.boxes is None:
                     continue
                 for box in r.boxes:
-                    if box.xyxy.numel() == 0: # Check if tensor is empty
+                    if box.xyxy.numel() == 0:  # Check if tensor is empty
                         continue
                     coords = box.xyxy[0]
-                    if len(coords) < 4: # Ensure coords has at least 4 elements
+                    if len(coords) < 4:  # Ensure coords has at least 4 elements
                         continue
 
                     x1, y1, x2, y2 = coords
@@ -61,10 +63,10 @@ class YoloDetector:
                             "x2": x2.item(),
                             "y2": y2.item(),
                             "confidence": box.conf[0].item() if box.conf is not None and box.conf.numel() > 0 else 0.0,
-                            "class_id": int(box.cls[0].item()) if box.cls is not None and box.cls.numel() > 0 else -1
+                            "class_id": int(box.cls[0].item()) if box.cls is not None and box.cls.numel() > 0 else -1,
                         }
         except Exception as e:
             logger.error(f"Error processing YOLO results: {e}")
-            return None # Return None if processing fails
+            return None  # Return None if processing fails
 
         return largest_box

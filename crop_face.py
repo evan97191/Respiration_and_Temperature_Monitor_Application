@@ -1,8 +1,8 @@
-import time
-import cv2
-import numpy as np
 import os
-import uuid # 用於生成唯一檔案名
+import time
+import uuid  # 用於生成唯一檔案名
+
+import cv2
 from ultralytics import YOLO
 
 # --- 配置參數 ---
@@ -13,24 +13,25 @@ CAMERA_SOURCE = (
     "nvarguscamerasrc sensor_mode=0 ! "
     "video/x-raw(memory:NVMM), width=3820, height=2464, framerate=21/1, format=NV12 ! "
     "nvvidconv flip-method=0 ! "
-    "video/x-raw, width=960, height=616 ! " # 降低解析度以提高速度
+    "video/x-raw, width=960, height=616 ! "  # 降低解析度以提高速度
     "nvvidconv ! "
     "video/x-raw, format=BGRx ! videoconvert ! "
     "video/x-raw, format=BGR ! appsink drop=true sync=false"
 )
 
-OUTPUT_DIR = "face"               # 儲存裁剪圖片的資料夾名稱
-TARGET_CLASS_ID = 2               # !!! 重要：戴口罩頭部的 Class ID (根據你的模型修改) !!!
-CONF_THRESHOLD = 0.5              # YOLO 偵測的置信度閾值
-CONF_THRESHOLD = 0.5              # YOLO 偵測的置信度閾值
+OUTPUT_DIR = "face"  # 儲存裁剪圖片的資料夾名稱
+TARGET_CLASS_ID = 2  # !!! 重要：戴口罩頭部的 Class ID (根據你的模型修改) !!!
+CONF_THRESHOLD = 0.5  # YOLO 偵測的置信度閾值
+CONF_THRESHOLD = 0.5  # YOLO 偵測的置信度閾值
 # --- 配置結束 ---
+
 
 def crop_roi(image, box_coords):
     """根據 YOLO 的 box 座標裁剪 ROI"""
     if image is None or box_coords is None:
         return None
     try:
-        x1, y1, x2, y2 = map(int, box_coords) # 確保是整數
+        x1, y1, x2, y2 = map(int, box_coords)  # 確保是整數
     except (ValueError, TypeError):
         print("Error: Invalid box coordinates format.")
         return None
@@ -51,6 +52,7 @@ def crop_roi(image, box_coords):
         return None
     return roi
 
+
 if __name__ == "__main__":
     # 1. 建立輸出資料夾
     os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -66,9 +68,9 @@ if __name__ == "__main__":
 
     # 3. 開啟攝影機
     print("開啟攝影機...")
-    if isinstance(CAMERA_SOURCE, str): # GStreamer pipeline
+    if isinstance(CAMERA_SOURCE, str):  # GStreamer pipeline
         cap = cv2.VideoCapture(CAMERA_SOURCE, cv2.CAP_GSTREAMER)
-    else: # Camera index
+    else:  # Camera index
         cap = cv2.VideoCapture(CAMERA_SOURCE)
 
     if not cap.isOpened():
@@ -83,11 +85,11 @@ if __name__ == "__main__":
     saved_image_count = 0
 
     cv2.namedWindow("test", cv2.WINDOW_NORMAL)
-    cv2.resizeWindow("test", 800+1, 600+1)
-    
+    cv2.resizeWindow("test", 800 + 1, 600 + 1)
+
     while True:
         print(f"{time.time() - start_time}")
-        if saved_image_count  >= 20:
+        if saved_image_count >= 20:
             print(f"以儲存{saved_image_count}張圖片")
             break
         ret, frame = cap.read()
@@ -99,7 +101,7 @@ if __name__ == "__main__":
                 if cropped_face is not None:
                     # 生成唯一檔案名
                     timestamp_str = time.strftime("%Y%m%d_%H%M%S")
-                    unique_id = uuid.uuid4().hex[:6] # 取 UUID 的前 6 位
+                    unique_id = uuid.uuid4().hex[:6]  # 取 UUID 的前 6 位
                     filename = f"face_{timestamp_str}_{unique_id}.png"
                     save_path = os.path.join(OUTPUT_DIR, filename)
 

@@ -11,7 +11,10 @@ target-version = "py310"
 # I: isort (import sorting)
 # W: pycodestyle warnings
 select = ["E", "F", "B", "I", "W"]
-ignore = []
+ignore = ["F405", "F403"]
+
+[lint.per-file-ignores]
+"uvctypes.py" = ["ALL"]
 
 # Allow autofix for all enabled rules (when using `ruff check --fix`)
 fixable = ["ALL"]

@@ -1,11 +1,13 @@
-import cv2
-import numpy as np
 import time
 from ctypes import *
+
+import cv2
+import numpy as np
+
 try:
-    from queue import Queue, Empty # Python 3
+    from queue import Empty, Queue  # Python 3
 except ImportError:
-    from Queue import Queue, Empty # Python 2
+    from Queue import Empty, Queue  # Python 2
 
 # --- Import UVC specifics ---
 try:
@@ -156,20 +158,24 @@ if __name__ == "__main__":
     try:
         print("Initializing UVC context...")
         res = libuvc.uvc_init(byref(ctx), 0)
-        if res < 0: raise RuntimeError("uvc_init error")
+        if res < 0:
+            raise RuntimeError("uvc_init error")
 
         print(f"Finding UVC device (VID={THERMAL_VID:#0x}, PID={THERMAL_PID:#0x})...")
         res = libuvc.uvc_find_device(ctx, byref(dev), THERMAL_VID, THERMAL_PID, 0)
-        if res < 0: raise RuntimeError("uvc_find_device error")
+        if res < 0:
+            raise RuntimeError("uvc_find_device error")
 
         print("Opening UVC device...")
         res = libuvc.uvc_open(dev, byref(devh))
-        if res < 0: raise RuntimeError(f"uvc_open error {res}")
+        if res < 0:
+            raise RuntimeError(f"uvc_open error {res}")
         devh_ptr = devh # Store handle pointer
 
         print("Getting frame formats...")
         frame_formats = uvc_get_frame_formats_by_guid(devh, VS_FMT_GUID_Y16)
-        if not frame_formats: raise RuntimeError("Device does not support Y16 format")
+        if not frame_formats:
+            raise RuntimeError("Device does not support Y16 format")
 
         print("Getting stream control format size...")
         target_width = frame_formats[0].wWidth
@@ -180,14 +186,16 @@ if __name__ == "__main__":
             devh, byref(ctrl), UVC_FRAME_FORMAT_Y16,
             target_width, target_height, target_fps
         )
-        if res < 0: raise RuntimeError(f"uvc_get_stream_ctrl_format_size error {res}")
+        if res < 0:
+            raise RuntimeError(f"uvc_get_stream_ctrl_format_size error {res}")
 
         print("Device initialized successfully.")
 
         # --- Start Streaming Briefly for ROI Selection Frame ---
         print("Starting stream to get first frame for ROI selection...")
         res = libuvc.uvc_start_streaming(devh, byref(ctrl), PTR_PY_FRAME_CALLBACK, None, 0)
-        if res < 0: raise RuntimeError("Could not start UVC stream")
+        if res < 0:
+            raise RuntimeError("Could not start UVC stream")
 
         print("Waiting for the first valid frame...")
         first_raw_frame = None
@@ -198,8 +206,8 @@ if __name__ == "__main__":
                   first_raw_frame = frame_queue.get(True, 2.0)
              except Empty:
                   print(".")
-                  if time.time() - start_wait_time > 10: # Timeout after 10 seconds
-                      raise TimeoutError("Timeout waiting for the first thermal frame.")
+                  if time.time() - start_wait_time > 10:  # Timeout after 10 seconds
+                      raise TimeoutError("Timeout waiting for the first thermal frame.") from None
                   time.sleep(0.1)
         print("First frame received.")
 
@@ -212,8 +220,10 @@ if __name__ == "__main__":
         print("Press any key in the 'Select ROI' window after selection.")
 
         # Resize the raw frame for consistent display size before converting
-        first_raw_frame_resized = cv2.resize(first_raw_frame, (DISPLAY_WIDTH, DISPLAY_HEIGHT), interpolation=cv2.INTER_NEAREST)
-        current_roi_frame = raw_to_8bit(first_raw_frame_resized) # Convert the resized frame to 8-bit for display
+        first_raw_frame_resized = cv2.resize(
+            first_raw_frame, (DISPLAY_WIDTH, DISPLAY_HEIGHT), interpolation=cv2.INTER_NEAREST
+        )
+        current_roi_frame = raw_to_8bit(first_raw_frame_resized)  # Convert for display
 
         if current_roi_frame is None:
              raise RuntimeError("Failed to convert first frame to 8-bit for ROI selection.")
@@ -226,8 +236,14 @@ if __name__ == "__main__":
             display_frame_roi = current_roi_frame.copy() # Work on a copy
             if drawing and start_point != (-1,-1): # Draw temporary rectangle if needed (handled in callback now)
                  pass # Callback handles preview drawing
-            elif roi_coords: # Draw final ROI if already selected but loop is waiting
-                 cv2.rectangle(display_frame_roi, (roi_coords[0],roi_coords[1]), (roi_coords[2],roi_coords[3]), (0,0,255), 2)
+            elif roi_coords:  # Draw final ROI if already selected but loop is waiting
+                cv2.rectangle(
+                    display_frame_roi,
+                    (roi_coords[0], roi_coords[1]),
+                    (roi_coords[2], roi_coords[3]),
+                    (0, 0, 255),
+                    2,
+                )
 
             cv2.putText(display_frame_roi, "Click and drag to select ROI, then press any key", (10, 30),
                         cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 1)
@@ -309,7 +325,7 @@ if __name__ == "__main__":
                 # 計算文字位置，可以稍微向上調整以容納更大的字體
                 text_y_offset = 15 # 向上偏移量
                 text_pos = (roi_coords[0]//2, max(15, roi_coords[1] - text_y_offset)) # 確保文字不會超出頂部
-                
+
                 cv2.putText(display_frame, temp_text, text_pos,
                             cv2.FONT_HERSHEY_SIMPLEX, font_scale, TEMP_TEXT_COLOR, thickness)
 

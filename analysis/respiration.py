@@ -1,28 +1,31 @@
 # analysis/respiration.py
 
-import numpy as np
-import config # 引入 config 來獲取參數
 import logging
-
 from collections import deque
+
+import numpy as np
+import scipy.fftpack
 from scipy.interpolate import interp1d
 from scipy.signal import butter, sosfiltfilt
-import scipy.fftpack
+
+import config  # 引入 config 來獲取參數
 
 logger = logging.getLogger(__name__)
 
+
 def update_temperature_queue(new_temp, data_list, max_size: int):
-    """ Adds a new temperature value to a deque, maintaining max size. """
-    if new_temp is None: # Don't add None values
+    """Adds a new temperature value to a deque, maintaining max size."""
+    if new_temp is None:  # Don't add None values
         return data_list
 
     # Ensure it's a deque
     if not isinstance(data_list, deque):
         data_list = deque(data_list, maxlen=max_size)
-    
+
     # Add the new temperature
     data_list.append(new_temp)
     return data_list
+
 
 def detrend(signal):
     p = np.polyfit(range(len(signal)), signal, 1)
@@ -30,28 +33,31 @@ def detrend(signal):
     signal_detrended = signal - trend
     return signal_detrended
 
+
 def butter_bandpass_sos(lowcut, highcut, fs, order=5):
-    """ Designs a Butterworth bandpass filter in SOS form (numerically stable). """
+    """Designs a Butterworth bandpass filter in SOS form (numerically stable)."""
     nyq = 0.5 * fs
     low = lowcut / nyq
     high = highcut / nyq
     # Ensure 'low' and 'high' are strictly bounded between 0.0 and 1.0
     low = max(1e-5, min(low, 0.999))
     high = max(low + 1e-5, min(high, 0.999))
-    sos = butter(order, [low, high], btype='band', output='sos')
+    sos = butter(order, [low, high], btype="band", output="sos")
     return sos
 
+
 def butter_bandpass_filter(data, lowcut, highcut, fs, order=5):
-    """ Applies a Butterworth bandpass filter using sosfiltfilt (zero-phase, numerically stable). """
+    """Applies a Butterworth bandpass filter using sosfiltfilt (zero-phase, numerically stable)."""
     sos = butter_bandpass_sos(lowcut, highcut, fs, order=order)
     y = sosfiltfilt(sos, data)
     return y
+
 
 def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN_BPM, max_bpm=config.RESP_MAX_BPM):
     """
     Calculates breathing rate in BPM using FFT, searching within a specified BPM range.
     Uses timestamps for accurate re-sampling to handle non-uniform framerates.
-    
+
     Args:
         temp_list (list): List of temperature values.
         timestamp_list (list): List of corresponding time stamps.
@@ -66,20 +72,20 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
 
     temp_array = np.array(temp_list)
     time_array = np.array(timestamp_list)
-    
+
     # Calculate effective FPS over the window to determine uniform sampling grid
     total_time = time_array[-1] - time_array[0]
     if total_time <= 0:
-         return None, None
-    
+        return None, None
+
     num_points = len(temp_array)
     uniform_fps = num_points / total_time
-    
+
     # Create uniform time grid
     uniform_time = np.linspace(time_array[0], time_array[-1], num_points)
-    
+
     # Interpolate temperature onto uniform time grid
-    interpolator = interp1d(time_array, temp_array, kind='linear')
+    interpolator = interp1d(time_array, temp_array, kind="linear")
     resampled_temp_array = interpolator(uniform_time)
 
     min_hz = min_bpm / 60.0
@@ -89,11 +95,11 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
     # Detrending before filtering reduces edge effects from DC offset/trends
     detrend_temp_array = detrend(resampled_temp_array)
 
-    min_filter_samples = getattr(config, 'BANDPASS_FILTER_MIN_SAMPLES', 30)
+    min_filter_samples = getattr(config, "BANDPASS_FILTER_MIN_SAMPLES", 30)
     try:
         # Apply filter only if we have sufficient samples
         if len(detrend_temp_array) >= min_filter_samples:
-             detrend_temp_array = butter_bandpass_filter(detrend_temp_array, min_hz, max_hz, uniform_fps, order=2)
+            detrend_temp_array = butter_bandpass_filter(detrend_temp_array, min_hz, max_hz, uniform_fps, order=2)
     except Exception as e:
         logger.warning(f"Bandpass filter failed (likely too few samples), skipping filter: {e}")
 
@@ -107,7 +113,7 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
     try:
         # --- FFT Calculation with Zero-Padding ---
         # Zero-padding improves spectral peak detection precision
-        zero_pad_factor = getattr(config, 'FFT_ZERO_PAD_FACTOR', 4)
+        zero_pad_factor = getattr(config, "FFT_ZERO_PAD_FACTOR", 4)
         target_length = N * zero_pad_factor
         final_length = max(config.TARGET_FFT_LEN, target_length)
         n_fft = scipy.fftpack.next_fast_len(final_length)
@@ -126,14 +132,14 @@ def calculate_respiration_fft(temp_list, timestamp_list, min_bpm=config.RESP_MIN
         positive_magnitude = fft_magnitude[:half_N]
 
         debug_data = {
-            'uniform_time': uniform_time,
-            'resampled_temp': detrend_temp_array,
-            'freqs': freqs,
-            'fft_magnitude': fft_magnitude,
-            'positive_freqs': positive_freqs,
-            'positive_magnitude': positive_magnitude,
-            'min_hz': min_hz,
-            'max_hz': max_hz
+            "uniform_time": uniform_time,
+            "resampled_temp": detrend_temp_array,
+            "freqs": freqs,
+            "fft_magnitude": fft_magnitude,
+            "positive_freqs": positive_freqs,
+            "positive_magnitude": positive_magnitude,
+            "min_hz": min_hz,
+            "max_hz": max_hz,
         }
 
         if len(positive_magnitude) == 0:
@@ -188,13 +194,13 @@ def calculate_fft_raw(temp_list, fps, min_bpm=config.RESP_MIN_BPM, max_bpm=confi
         positive_magnitude = fft_magnitude[:half_N]
 
         debug_data = {
-            'raw_temp': temp_array,
-            'freqs': freqs,
-            'fft_magnitude': fft_magnitude,
-            'positive_freqs': positive_freqs,
-            'positive_magnitude': positive_magnitude,
-            'min_hz': min_hz,
-            'max_hz': max_hz
+            "raw_temp": temp_array,
+            "freqs": freqs,
+            "fft_magnitude": fft_magnitude,
+            "positive_freqs": positive_freqs,
+            "positive_magnitude": positive_magnitude,
+            "min_hz": min_hz,
+            "max_hz": max_hz,
         }
 
         if len(positive_magnitude) == 0:

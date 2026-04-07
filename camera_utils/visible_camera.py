@@ -1,11 +1,14 @@
 # camera_utils/visible_camera.py
 
-import cv2
-import config
 import logging
+
+import cv2
 import numpy as np
 
+import config
+
 logger = logging.getLogger(__name__)
+
 
 class VisibleCamera:
     """Handles Visible Light Camera interaction using GStreamer."""
@@ -20,10 +23,11 @@ class VisibleCamera:
         # Get default FPS (might not be accurate for GStreamer)
         self.default_fps = self.cap.get(cv2.CAP_PROP_FPS)
         if self.default_fps <= 0 or np.isnan(self.default_fps):
-             self.default_fps = config.DEFAULT_FPS # Fallback
-        logger.info(f"Camera default FPS reported: {self.default_fps} (using {config.DEFAULT_FPS} as fallback if needed)")
+            self.default_fps = config.DEFAULT_FPS  # Fallback
+        logger.info(
+            f"Camera default FPS reported: {self.default_fps} (using {config.DEFAULT_FPS} as fallback if needed)"
+        )
         self.error_count = 0
-
 
     def get_frame(self):
         """Reads a frame from the camera."""
@@ -35,9 +39,9 @@ class VisibleCamera:
             else:
                 logger.warning(f"Failed to capture frame from visible camera. (Attempt {self.error_count})")
             return False, None
-            
+
         self.error_count = 0
-            
+
         return True, frame
 
     def get_default_fps(self):
@@ -46,7 +50,7 @@ class VisibleCamera:
 
     def release(self):
         """Releases the camera capture resource."""
-        if hasattr(self, 'cap') and self.cap.isOpened():
+        if hasattr(self, "cap") and self.cap.isOpened():
             logger.info("Releasing visible camera...")
             self.cap.release()
             logger.info("Visible camera released.")
