@@ -32,8 +32,12 @@ TEST_THERMAL_VIDEO = "test_data/thermal_test.npy"
 SKIN_COLOR_FILTER = False
 
 # -- Camera Parameters --
+# Target Visible Camera Resolution (4:3)
+VISIBLE_WIDTH = 800
+VISIBLE_HEIGHT = 600
+
 # Default FPS if calculation fails or for camera configuration
-DEFAULT_FPS = 60  # Adjust based on expected performance
+DEFAULT_FPS = 30  # Adjust based on expected performance
 
 # UVC Thermal Camera VID/PID (from uvctypes.py, maybe keep there or centralize here)
 THERMAL_VID = 0x1E4E
@@ -41,34 +45,45 @@ THERMAL_PID = 0x0100
 THERMAL_BUFFER_SIZE = 2
 
 # Visible Camera GStreamer Pipeline
+# To maximize FOV and match Lepton 3.5 (57° HFOV) with IMX219 (62.2° HFOV),
+# we crop slightly (~90%) to align the physical viewing area.
+_SENSOR_W, _SENSOR_H = 1640, 1232
+_MATCH_FACTOR = 0.9  # Adjust this to fine-tune digital zoom (1.0 = full sensor)
+
+_CROP_W = int(_SENSOR_W * _MATCH_FACTOR)
+_CROP_H = int(_SENSOR_H * _MATCH_FACTOR)
+
+_LEFT = (_SENSOR_W - _CROP_W) // 2
+_TOP = (_SENSOR_H - _CROP_H) // 2
+_RIGHT = _LEFT + _CROP_W
+_BOTTOM = _TOP + _CROP_H
+
 GST_PIPELINE = (
-    "nvarguscamerasrc sensor_mode=4 ! "
-    f"video/x-raw(memory:NVMM), width=1280, height=720, framerate={DEFAULT_FPS}/1, format=NV12 ! "
-    "nvvidconv flip-method=0 ! "
-    "video/x-raw, width=960, height=616 ! "
-    "nvvidconv ! "
-    "video/x-raw, format=BGRx ! videoconvert ! "
-    "video/x-raw, format=BGR ! appsink drop=true sync=false"
+    "nvarguscamerasrc sensor_mode=3 ! "
+    f"video/x-raw(memory:NVMM), width={_SENSOR_W}, height={_SENSOR_H}, framerate={DEFAULT_FPS}/1, format=NV12 ! "
+    f"nvvidconv flip-method=0 left={_LEFT} right={_RIGHT} top={_TOP} bottom={_BOTTOM} ! "
+    f"video/x-raw, width={VISIBLE_WIDTH}, height={VISIBLE_HEIGHT}, format=BGRx ! videoconvert ! "
+    f"video/x-raw, format=BGR ! appsink drop=true sync=false"
 )
 
 # -- Processing Parameters --
 # Target display/processing resolution (after potential camera resize)
-DISPLAY_WIDTH = 800
-DISPLAY_HEIGHT = 600
+DISPLAY_WIDTH = VISIBLE_WIDTH
+DISPLAY_HEIGHT = VISIBLE_HEIGHT
 
 # Perspective Transform Points (Hardcoded or from calibration file)
 # Format: [[x_ir, y_ir], ...] and [[x_vis, y_vis], ...]
-POINTS_IR = [[95, 71], [117, 578], [703, 565], [715, 69]]
-POINTS_VIS = [[197, 122], [226, 520], [780, 510], [781, 107]]
+POINTS_IR = [[129, 78], [155, 504], [689, 503], [693, 78]]
+POINTS_VIS = [[165, 127], [188, 481], [642, 487], [647, 124]]
 # POINTS_IR = [[135, 155], [622, 123], [159, 434], [635, 412]]
 # POINTS_VIS = [[195, 206], [666, 175], [204, 436], [675, 417]]
 # YOLO Detection Confidence Threshold
 YOLO_CONF_THRESHOLD = 0.5
 # -- Optimization Parameters --
 # Number of frames to skip YOLO detection if a face was found in the previous frame
-DETECTION_SKIP_INTERVAL = get_env_int("DETECTION_SKIP_INTERVAL", 5)
+DETECTION_SKIP_INTERVAL = get_env_int("DETECTION_SKIP_INTERVAL", 0)
 # Number of frames to skip Respiration FFT calculation (updates every X frames)
-FFT_SKIP_INTERVAL = get_env_int("FFT_SKIP_INTERVAL", 5)
+FFT_SKIP_INTERVAL = get_env_int("FFT_SKIP_INTERVAL", 0)
 
 # UNet Segmentation Threshold
 UNET_CONF_THRESHOLD = 0.5  # As per original code, adjust if needed (0.5 is common)
@@ -137,13 +152,13 @@ WINDOW_THERMAL_MASK_SEGMENTED = "THERMAL MASK Segmented"
 WINDOW_THERMAL_SKIN_MASK_SEGMENTED = "THERMAL SKIN MASK Segmented"
 WINDOW_ANALYSIS = "Analysis Graphs"
 
-SHOW_VISIBLE_CAMERA_UI = get_env_bool("SHOW_VISIBLE_CAMERA_UI", False)
-SHOW_THERMAL_UI = get_env_bool("SHOW_THERMAL_UI", False)
+SHOW_VISIBLE_CAMERA_UI = get_env_bool("SHOW_VISIBLE_CAMERA_UI", True)
+SHOW_THERMAL_UI = get_env_bool("SHOW_THERMAL_UI", True)
 SHOW_MASK_OVERLAY_UI = get_env_bool("SHOW_MASK_OVERLAY_UI", False)
 SHOW_MASK_SEGMENTED_UI = get_env_bool("SHOW_MASK_SEGMENTED_UI", False)
 SHOW_THERMAL_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_MASK_SEGMENTED_UI", False)
 SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI = get_env_bool("SHOW_THERMAL_SKIN_MASK_SEGMENTED_UI", False)
-SHOW_ANALYSIS_UI = get_env_bool("SHOW_ANALYSIS_UI", False)
+SHOW_ANALYSIS_UI = get_env_bool("SHOW_ANALYSIS_UI", True)
 
 # -- Device --
 # Auto-detect CUDA or use CPU

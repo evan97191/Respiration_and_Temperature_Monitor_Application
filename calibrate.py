@@ -93,11 +93,11 @@ def update_config_file(config_path, points_vis, points_ir):
 
 
 if __name__ == "__main__":
-    # --- 定義與主程式 resp_new_v1.py 完全相同的尺寸 ---
-    CALIB_VIS_WIDTH = 960  # 可見光影像寬度 (來自GStreamer)
-    CALIB_VIS_HEIGHT = 616  # 可見光影像高度 (來自GStreamer)
-    CALIB_IR_WIDTH = 800  # 紅外光影像寬度
-    CALIB_IR_HEIGHT = 600  # 紅外光影像高度
+    # --- 使用 config.py 中定義的解析度 ---
+    CALIB_VIS_WIDTH = config.VISIBLE_WIDTH  # 可見光影像寬度
+    CALIB_VIS_HEIGHT = config.VISIBLE_HEIGHT  # 可見光影像高度
+    CALIB_IR_WIDTH = config.DISPLAY_WIDTH  # 紅外光影像寬度 (通常與可見光顯示一致)
+    CALIB_IR_HEIGHT = config.DISPLAY_HEIGHT  # 紅外光影像高度
 
     # --- 初始化攝影機 (使用與主程式相同的 GStreamer pipeline) ---
     cap = cv2.VideoCapture(config.GST_PIPELINE, cv2.CAP_GSTREAMER)
@@ -142,8 +142,8 @@ if __name__ == "__main__":
     points_vis = []
     points_ir = []
 
-    window_name_vis = "Visible Camera - Click 4 points (960x616)"
-    window_name_ir = "Thermal Camera - Click 4 points (800x600)"
+    window_name_vis = f"Visible Camera - Click 4 points ({CALIB_VIS_WIDTH}x{CALIB_VIS_HEIGHT})"
+    window_name_ir = f"Thermal Camera - Click 4 points ({CALIB_IR_WIDTH}x{CALIB_IR_HEIGHT})"
     cv2.namedWindow(window_name_vis)
     cv2.namedWindow(window_name_ir)
 
