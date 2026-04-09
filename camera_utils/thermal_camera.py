@@ -40,8 +40,13 @@ def py_frame_callback(frame, userptr):
             logger.warning("Warning: Thermal frame data bytes mismatch.")
             return
 
-        if not frame_queue.full():
-            frame_queue.put(data)
+        # Always keep the latest frame. If the queue is full, remove the oldest one.
+        if frame_queue.full():
+            try:
+                frame_queue.get_nowait()
+            except Empty:
+                pass
+        frame_queue.put(data)
     except Exception as e:
         logger.error(f"Error in thermal frame callback: {e}")
 
